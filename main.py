@@ -1,12 +1,7 @@
-import pandas as pd
 from sklearn.cluster import KMeans
 from preprocessing.clean_trajectories import Trajectories
 from datetime import datetime
-import numpy as np
-from river import drift
-import sklearn.metrics as metrics
 from preprocessing import features as fts
-from sklearn.preprocessing import OneHotEncoder
 
 print('Starting')
 # https://coast.noaa.gov/data/marinecadastre/ais/VesselTypeCodes2018.pdf

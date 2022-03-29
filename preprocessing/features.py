@@ -1,11 +1,6 @@
 import pandas as pd
-from sklearn.cluster import KMeans
-from preprocessing.clean_trajectories import Trajectories
-from datetime import datetime
 import numpy as np
-from river import drift
-import sklearn.metrics as metrics
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 
 def remove_short_trajectories(data, n_obs=100):
