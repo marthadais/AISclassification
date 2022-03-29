@@ -50,10 +50,14 @@ def MA_MS_simple(data, col='sog', window=30):
     return data_agg
 
 
-def MA_MS_timestamp(data, col='sog', epsilon=180):
+def MA_MS_timestamp(data, col='sog', epsilon=180, verbose=True):
     data_agg = pd.DataFrame()
     mean_window = []
+    if verbose:
+        print(f'Running for {col}')
     for traj_id in data['trajectory'].unique():
+        if verbose:
+            print(f'\t running trajectory {traj_id}')
         mean_window_traj = []
         trajectory = data[data['trajectory'] == traj_id][col]
         trajectory_time = data[data['trajectory'] == traj_id]['time']
@@ -78,7 +82,8 @@ def MA_MS_timestamp(data, col='sog', epsilon=180):
         data_agg = pd.concat([data_agg, traj_roll], axis=0)
         mean_window.append(np.array(mean_window_traj).mean())
 
-    print(f'time window: {np.array(mean_window).mean()}, {np.array(mean_window).std()}')
+    if verbose:
+        print(f'\t time window: {np.array(mean_window).mean()}, {np.array(mean_window).std()}')
     data_agg = data_agg.reset_index(drop=True)
     return data_agg
 
@@ -95,16 +100,12 @@ def get_features(data, n_dirs=4, win=30, eps=180):
     features['acceleration'] = features['sog'].diff()
     features = features.fillna(0)
 
-    print('sog')
     MA_data = MA_MS_timestamp(features, col='sog', epsilon=eps)
     features = pd.concat([features, MA_data], axis=1)
-    print('cog')
     MA_data = MA_MS_timestamp(features, col='cog', epsilon=eps)
     features = pd.concat([features, MA_data], axis=1)
-    print('acceleration')
     MA_data = MA_MS_timestamp(features, col='acceleration', epsilon=eps)
     features = pd.concat([features, MA_data], axis=1)
-    print('roc')
     MA_data = MA_MS_timestamp(features, col='roc', epsilon=eps)
     features = pd.concat([features, MA_data], axis=1)
 
