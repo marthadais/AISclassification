@@ -99,7 +99,7 @@ def get_features(data, n_dirs=4, win=30, eps=180):
     features = pd.concat([features, enc_rose], axis=1)
 
     features['roc'] = diff_cog(features['cog'])
-    features['acceleration'] = features['sog'].diff()
+    features['acceleration'] = features['sog'].diff()/features['time'].diff().dt.seconds
     features = features.fillna(0)
 
     MA_data = MA_MS_timestamp(features, col='sog', epsilon=eps)
