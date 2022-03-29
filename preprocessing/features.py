@@ -72,6 +72,8 @@ def MA_MS_timestamp(data, col='sog', epsilon=180, verbose=True):
                 time_in_w = time_in_w + delta_T.iloc[obs+step]
                 step = step + 1
             end = obs + step-1
+            if np.isnan(trajectory.iloc[obs:end].mean()):
+                end = end + 1
             traj_roll_mean.append(trajectory.iloc[obs:end].mean())
             traj_roll_std.append(trajectory.iloc[obs:end].std())
             mean_window_traj.append(step)
