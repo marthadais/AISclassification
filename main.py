@@ -1,33 +1,20 @@
 import pandas as pd
 from sklearn.cluster import KMeans
-from preprocessing.clean_trajectories import Trajectories
-from datetime import datetime
 from preprocessing import features as fts
 import os
 
-print('Starting')
-# https://coast.noaa.gov/data/marinecadastre/ais/VesselTypeCodes2018.pdf
-# FISHING
-vessel_type = [30, 1001, 1002]
-start_day = datetime(2020, 4, 1)
-end_day = datetime(2020, 6, 30)
-# Attributes
-dim_set = ['lat', 'lon']
-# Juan de Fuca Strait
-region_limits = [46, 51, -130, -122.5]
-
-# Creating dataset
-print('Dataset')
-dataset = Trajectories(n_samples=None, vessel_type=vessel_type, time_period=(start_day, end_day),
-                       region=region_limits)
-
-data_cl_all = dataset.get_dataset()
+print('Reading Dataset')
+data_file = f'DCAIS_[30_ 1001_ 1002]_None-mmsi_region_[46_ 51_ -130_ -122.5]_01-04_to_30-06_trips.csv'
+dataset = pd.read_csv(data_file, parse_dates=['time'], low_memory=False)
+dataset['time'] = dataset['time'].astype('datetime64[ns]')
+dataset = dataset.sort_values(by=['trajectory', "time"])
 
 window = 5
 n_dirs = 16
-features_path = f'./data/DCAIS_{vessel_type}_-mmsi_region_{region_limits}_{start_day.day:02d}-{start_day.month:02d}_to_{end_day.day:02d}-{end_day.month:02d}_features.csv'
+seconds = 10*60
+features_path = f'./data/features_win_{window}_rose_{n_dirs}_time_win_{seconds}.csv'
 if not os.path.exists(features_path):
-    features_all = fts.get_features(data_cl_all, n_dirs=n_dirs, win=window)
+    features_all = fts.get_features(dataset, n_dirs=n_dirs, win=window, eps=seconds)
     features_all.to_csv(features_path, index=False)
 else:
     features_all = pd.read_csv(features_path)

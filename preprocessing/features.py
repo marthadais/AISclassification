@@ -41,6 +41,7 @@ def MA_MS_simple(data, col='sog', window=30):
         traj_roll = pd.DataFrame()
         traj_roll[f'ma_{col}'] = trajectory.rolling(window, center=True).mean()
         traj_roll[f'ms_{col}'] = trajectory.rolling(window, center=True).std()
+        traj_roll[f'msum_{col}'] = trajectory.rolling(window, center=True).sum()
         traj_roll = traj_roll.dropna()
         if traj_roll.shape[0] == 0:
             print(f'Trajectory {traj_id} has not enough observations for window size {window}!')
@@ -65,6 +66,7 @@ def MA_MS_timestamp(data, col='sog', epsilon=180, verbose=True):
 
         traj_roll_mean = []
         traj_roll_std = []
+        traj_roll_sum = []
         for obs in range(trajectory.shape[0]):
             step = 1
             time_in_w = timedelta(0)
@@ -76,11 +78,13 @@ def MA_MS_timestamp(data, col='sog', epsilon=180, verbose=True):
                 end = end + 1
             traj_roll_mean.append(trajectory.iloc[obs:end].mean())
             traj_roll_std.append(trajectory.iloc[obs:end].std())
+            traj_roll_sum.append(trajectory.iloc[obs:end].sum())
             mean_window_traj.append(step)
 
         traj_roll = pd.DataFrame()
         traj_roll[f'ma_t_{col}'] = pd.DataFrame(traj_roll_mean)
         traj_roll[f'ms_t_{col}'] = pd.DataFrame(traj_roll_std)
+        traj_roll[f'msum_t_{col}'] = pd.DataFrame(traj_roll_sum)
         data_agg = pd.concat([data_agg, traj_roll], axis=0)
         mean_window.append(np.array(mean_window_traj).mean())
 
