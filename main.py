@@ -4,7 +4,7 @@ from preprocessing import features as fts
 import os
 
 print('Reading Dataset')
-data_file = f'DCAIS_[30_ 1001_ 1002]_None-mmsi_region_[46_ 51_ -130_ -122.5]_01-04_to_30-06_trips.csv'
+data_file = f'./data/preprocessed/DCAIS_[30_ 1001_ 1002]_None-mmsi_region_[46_ 51_ -130_ -122.5]_01-04_to_30-06_trips.csv'
 dataset = pd.read_csv(data_file, parse_dates=['time'], low_memory=False)
 dataset['time'] = dataset['time'].astype('datetime64[ns]')
 dataset = dataset.sort_values(by=['trajectory', "time"])
