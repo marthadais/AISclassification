@@ -22,13 +22,14 @@ else:
 # select features to run the clustering
 # features columns:'sog', 'cog', 'rose',
 # 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, ([str(i) for i in range(n_dirs)])
-# 'roc', 'acceleration', 'ma_t_sog', 'ms_t_sog', 'ma_t_cog', 'ms_t_cog',
-# 'ma_t_acceleration', 'ms_t_acceleration', 'ma_t_roc', 'ms_t_roc',
-# 'ma_sog', 'ms_sog', 'ma_cog', 'ms_cog',
-# 'ma_acceleration', 'ms_acceleration', 'ma_roc', 'ms_roc'
+# 'roc', 'acceleration', 'ma_t_sog', 'ms_t_sog', 'msum_t_sog', 'ma_t_cog', 'ms_t_cog', 'msum_t_cog',
+# 'ma_t_acceleration', 'ms_t_acceleration', 'msum_t_acceleration', 'ma_t_roc', 'ms_t_roc', 'msum_t_roc',
+# 'ma_sog', 'ms_sog', 'msum_sog', 'ma_cog', 'ms_cog', 'msum_cog',
+# 'ma_acceleration', 'ms_acceleration', 'msum_acceleration', 'ma_roc', 'ms_roc', 'msum_roc'
+# [str(i) for i in range(n_dirs)]
 
 #%%
-cols = ['ma_t_sog'] + [str(i) for i in range(n_dirs)]
+cols = ['ma_t_sog', 'ms_t_sog', 'msum_t_roc']
 data_cl = features_all[cols]
 
 print('Clustering')
@@ -38,10 +39,10 @@ model = KMeans(nc).fit(data_cl)
 labels = model.labels_
 # metrics.silhouette_score(data_cl, labels)
 data_cl['label'] = labels
-data_cl_all['labels'] = labels
+dataset['labels'] = labels
 
 # Saving
 # index of a few trajectories to quickly evaluate
-test = data_cl_all[data_cl_all['trajectory'].isin([213, 117, 145, 26, 11])]
+test = dataset[dataset['trajectory'].isin([213, 117, 145, 26, 11])]
 test.to_csv(f'fishing_5_{nc}_{window}_{cols}.csv', index=False)
-data_cl_all.to_csv(f'fishing_{nc}_{window}_{cols}.csv', index=False)
+dataset.to_csv(f'fishing_{nc}_{window}_{cols}.csv', index=False)
