@@ -1,25 +1,47 @@
+# coding=utf-8
+#
+#  Copyright 2022, Gabriel Spadon, all rights reserved.
+#  This code is under GNU General Public License v3.0.
+#      www.spadon.com.br & gabriel@spadon.com.br
+#
+# For reproducibility set "CUBLAS_WORKSPACE_CONFIG=:16:8" as environment variable.
+
+import os
 import torch
+import random
 import numpy as np
-import multiprocessing as mp
-from torch.utils.data import TensorDataset, DataLoader
-from torch.nn import RNN, GRU, LSTM, TransformerEncoderLayer
+
+from tqdm import tqdm
+from torch.optim import AdamW
+from torch.nn import RNN, GRU, LSTM  # used with eval(<class-name>)
+from sklearn.metrics import f1_score
+from multiprocessing import cpu_count
+from torch.utils.data import DataLoader
+from sklearn.metrics import recall_score
+from torch.utils.data import TensorDataset
+from sklearn.metrics import precision_score
+from sklearn.metrics import classification_report
+from sklearn.metrics import balanced_accuracy_score
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 
-class MyNetwork(torch.nn.Module):
+class NetworkPlayground(torch.nn.Module):
     """
-    A Vanilla Neural Network for baselines computation.
+    A Neural Network Playground for baselines computation.
     """
-    def __init__(self, window, development, horizon, recurrent_unit, hidden_size, recurrent_layers, bidirectional, bias, **kwargs):
+    def __init__(self, window, variables, tuning_samples, test_samples, recurrent_unit, hidden_size, recurrent_layers, bidirectional, bias, **kwargs):
         """
         Initializes the layers of the network with the user-input arguments.
         :param window: integer
             The number of time steps to look at in the past.
-        :param development: integer
+        :param window: integer
+            The number of variables in the dataset.
+        :param tuning_samples: integer
             The number of time-steps reserved for hyperparameter tuning.
-        :param horizon: integer
+        :param test_samples: integer
             The number of time steps to predict in the future.
         :param recurrent_unit: string
-            Defines the architecture used as a recurrent layer.
+            Defines the architecture used as a recurrent layer between RNN, GRU, and LSTM.
         :param hidden_size: integer
             The number of elements in the hidden unit of the RNN.
         :param recurrent_layers: string
@@ -29,40 +51,45 @@ class MyNetwork(torch.nn.Module):
         :param bias: boolean
             Sets bias vectors permanently to zeros if set to False.
         """
-        super(MyNetwork, self).__init__()
+        super(NetworkPlayground, self).__init__()
 
         # Attributes
+        self.epoch = 0
         self.bias = bias
         self.window = window
-        self.horizon = horizon
-        self.development = development
+        self.min_loss = np.inf
+        self.variables = variables
         self.hidden_size = hidden_size
+        self.test_samples = test_samples
         self.bidirectional = bidirectional
+        self.tuning_samples = tuning_samples
         self.recurrent_unit = recurrent_unit
         self.recurrent_layers = recurrent_layers
 
         # Evaluation Metrics
-        self.L1Loss = torch.nn.L1Loss
-        self.MSELoss = torch.nn.MSELoss
-        self.HuberLoss = torch.nn.HuberLoss
-
-        # Training Attributes
-        self.optimizer = None
-        self.scheduler = None
-        self.criterion = None
+        self.BCE = torch.nn.BCELoss()
+        self.HE = torch.nn.HingeEmbeddingLoss()
+        self.KLD = torch.nn.KLDivLoss(reduction="batchmean")
 
         for key, value in kwargs.items():
             # Mapping all kwargs to attributes
             setattr(self, key, value)
+        self.hash = hash(frozenset(kwargs.items()))
 
         # Neural Network Layers
         self.RNN = eval(recurrent_unit)(
-                input_size=window, hidden_size=hidden_size,
+                bidirectional=bidirectional, bias=bias,
+                input_size=variables, hidden_size=hidden_size,
                 num_layers=recurrent_layers, batch_first=True,
-                bidirectional=bidirectional, bias=bias
         )
+        self.Sigmoid = torch.nn.Sigmoid()  # Required when using BCE
+        self.Linear1 = torch.nn.Linear(in_features=window, out_features=1)
+        self.Linear2 = torch.nn.Linear(in_features=hidden_size, out_features=1)
 
-        self.Linear = torch.nn.Linear(in_features=hidden_size, out_features=1)
+        # Training Defines
+        self.criterion = self.BCE
+        self.optimizer = AdamW(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay, amsgrad=self.use_amsgrad)
+        self.scheduler = ReduceLROnPlateau(self.optimizer, factor=self.scheduler_factor, patience=self.scheduler_patience, threshold=self.improvement_threshold)
 
     def forward(self, x):
         """
@@ -72,23 +99,21 @@ class MyNetwork(torch.nn.Module):
         :return: array-like of shape (samples, horizon, variables)
             Predictions for the next horizon-sized time-steps.
         """
-        x, _ = self.RNN(x.permute(0, 2, 1))  # time to the last axis
-        x = x.permute(0, 2, 1)  # variable to the last axis
+        x, _ = self.RNN(x)
         if self.bidirectional:
-            x = x.view(-1, self.horizon, 2, self.variables)
-            x = x.sum(axis=2)  # merging branches by sum
-        x = self.Linear(x)
-        return x
+            x = x.view(-1, self.window, 2, self.hidden_size)
+            x = x.sum(axis=2)  # merging temporal branches by summing them
+        x = self.Linear1(x.permute(0, 2, 1))  # linearly reduces the sequences
+        x = self.Linear2(x.permute(0, 2, 1))  # maps variables into classes
+        return self.Sigmoid(torch.squeeze(x))  # BCE requires a Sigmoid
 
-    def __train(self, x, y, clipping_value=1.):
+    def __fit(self, x, y):
         """
         PyTorch training routine.
         :param x: array-like of shape (samples, window, variables)
             Observations from the past window-sized time-steps.
         :param y: array-like of shape (samples, horizon, variables)
             Predictions for the next horizon-sized time-steps.
-        :param clipping_value: float
-            The max norm of the gradients.
         :return: array-like of shape (1,)
             The criterion loss.
         """
@@ -97,17 +122,13 @@ class MyNetwork(torch.nn.Module):
 
         # Forward propagation
         y_pred = self.forward(x)
-
-        # Rollback any normalization-like
-        y_pred, y = self.roll_back(y_pred), y
-
         # Computing the resulting loss
         loss = self.criterion(y_pred, y)
 
         loss.backward()
         # Gradient value clipping
-        torch.nn.utils.clip_grad_norm(self.parameters(), clipping_value)
-        self.optimizer.step()  # Updating parameters
+        torch.nn.utils.clip_grad_norm_(self.parameters(), self.max_gradnorm)
+        self.optimizer.step()  # updating parameters
 
         return loss.detach().cpu().numpy()
 
@@ -118,46 +139,53 @@ class MyNetwork(torch.nn.Module):
             Observations from the past window-sized time-steps.
         :param y: array-like of shape (samples, horizon, variables)
             Predictions for the next horizon-sized time-steps.
-        :return: array-like of shape (3,)
+        :return: array-like of shape (5,)
             A set of three evaluation metrics.
         """
         self.eval()
+
         with torch.no_grad():
             y_pred = self.forward(x)
 
-        # Rollback any normalization-like
-        y_pred, y = self.roll_back(y_pred), y
-
         # The batch criterion loss
         return np.array([
-            self.L1Loss(y_pred, y).cpu().numpy(),  # Mean Absolute Error (MAE)
-            self.MSELoss(y_pred, y).cpu().numpy(),  # Mean Squared Error (MSE)
-            self.HuberLoss(y_pred, y).cpu().numpy(),  # Huber Loss (HL)
+            self.BCE(y_pred, y).cpu().numpy(),  # BCELoss
+            self.KLD(y_pred, y).cpu().numpy(),  # KLDivLoss
+            self.HE(y_pred, y).cpu().numpy(),  # HingeEmbeddingLoss
         ])
 
-    def data_preparation(self, x, y, batch_size=32, shuffle=True, normalize_data=True, num_workers=1, drop_last=True):
+    def predict(self, x):
+        """
+        PyTorch inference routine.
+        :param x: array-like of shape (samples, window, variables)
+            Observations from the past window-sized time-steps.
+        :return: array-like of shape (samples,)
+            One label for each sample.
+        """
+        self.eval()
+        with torch.no_grad():
+            return self.forward(x).cpu()
+
+    def data_preparation(self, x, y, generator, num_workers=cpu_count(), drop_last=True):
         """
         Iterates over the time axis, segmenting the time series for neural network training.
         :param x: tensor of shape (n_samples, n_timestamps, n_features)
             A tensor of float-valued data features to use for classification.
         :param y: tensor of shape (n_samples, n_timestamps, n_features)
             A tensor of integer-valued monotonically-increasing labels.
-        :param batch_size: integer
-            How many samples per batch to load.
-        :param shuffle: boolean
-            Set to True to have the data reshuffled at every epoch.
-        :param normalize_data: boolean
-            If True applies z-score followed by min-max normalization on the features.
+        :param generator: object
+            Generator that manages the state of the pseudo-random numbers algorithm.
         :param num_workers: integer
-            How many subprocesses to use for data loading (set to -1 for all).
+            How many subprocesses to use for data loading.
         :param drop_last: boolean
             Set to True to drop the last batch if incomplete.
         """
-        slice_ids = [[], [], []]
+        slice_ids = [[], [], []]  # used for validation
+
         xt_list, yt_list = [], []
         # Isolating the test data from the end of the dataset
         w_start, w_end = (x.shape[1] - self.window, x.shape[1])
-        for _ in range(self.horizon):  # Samples reserved for testing
+        for _ in range(self.test_samples):
             assert w_start >= 0, "Invalid arguments."
             slice_ids[2].append((w_start, w_end))
             xt_list.append(x[:, w_start:w_end, :])
@@ -167,8 +195,8 @@ class MyNetwork(torch.nn.Module):
         xt, yt = torch.stack(xt_list), torch.stack(yt_list)
 
         xd_list, yd_list = [], []
-        # Separating the development data right before the test data
-        for _ in range(self.development):  # Samples reserved for development
+        # Separating the tuning data right before the test data
+        for _ in range(self.tuning_samples):
             assert w_start >= 0, "Invalid arguments."
             slice_ids[1].append((w_start, w_end))
             xd_list.append(x[:, w_start:w_end, :])
@@ -190,30 +218,136 @@ class MyNetwork(torch.nn.Module):
         # Checking for data leaking by intersecting indices (no leaking means an empty set)
         assert len(set(slice_ids[0]) & (set(slice_ids[1]) | set(slice_ids[2]))) == 0
 
-        if normalize_data:
+        if self.normalize_data:
             # Z-Score Normalization
             x_std, x_mean = torch.std_mean(x, dim=(0, 2), unbiased=False, keepdim=True)
-            x_std[x_std == 0] = 1  # Avoid zero division
-            x = (x - x_mean) / x_std  # Training Data
-            xd = (xd - x_mean) / x_std  # Tuning Data
-            xt = (xt - x_mean) / x_std  # Test Data
+            x_std[x_std == 0] = 1  # avoid zero division
+            x = (x - x_mean) / x_std  # training data
+            xd = (xd - x_mean) / x_std  # tuning data
+            xt = (xt - x_mean) / x_std  # test data
             # Min-Max Normalization
             x_max = x.amax(dim=(0, 2), keepdim=True)
             x_min = x.amin(dim=(0, 2), keepdim=True)
-            x_max[x_max == 0] = 1  # Avoid zero division
-            x = (x - x_min) / (x_max - x_min)  # Training Data
-            xd = (xd - x_min) / (x_max - x_min)  # Tuning Data
-            xt = (xt - x_min) / (x_max - x_min)  # Test Data
+            x_max[x_max == 0] = 1  # avoid zero division
+            x = (x - x_min) / (x_max - x_min)  # training data
+            xd = (xd - x_min) / (x_max - x_min)  # tuning data
+            xt = (xt - x_min) / (x_max - x_min)  # test data
 
         # The batches are CPU-pinned for quicker GPU transfer
         dataloader = DataLoader(dataset=TensorDataset(*[x.view(-1, *x.shape[-2:]), y.view(-1,)]),
-                                num_workers=max(0, min(num_workers, mp.cpu_count())),
-                                batch_size=batch_size, shuffle=shuffle,
+                                generator=generator, worker_init_fn=NetworkPlayground.__worker_init,
+                                num_workers=max(0, min(num_workers, cpu_count())),
+                                batch_size=self.batch_size, shuffle=self.shuffle,
                                 drop_last=drop_last, pin_memory=True)
 
         # Enforcing the shape of the input tuning and test data on reserved RAM address
         xd, yd = xd.view(-1, *xd.shape[-2:]).pin_memory(), yd.view(-1,).pin_memory()
         xt, yt = xt.view(-1, *xt.shape[-2:]).pin_memory(), yt.view(-1,).pin_memory()
 
-        # Train, Tuning, and Test data folds
-        return dataloader, [(xd, yd), (xt, yt)]
+        # Train, tuning, and test data folds
+        return dataloader, (xd, yd), (xt, yt)
+
+    @staticmethod
+    def __worker_init(worker_id):
+        """
+            Enforce reproducibility for PyTorch's Dataloader.
+            - Arguments are self-explanatory.
+        """
+        worker_seed = torch.initial_seed() % 2 ** 32
+        np.random.seed(worker_seed)
+        random.seed(worker_seed)
+        return worker_id
+
+    @staticmethod
+    def __reseeding(random_seed):
+        """
+            Avoid losing determinism on Cuda 10.2.
+            - Arguments are self-explanatory.
+        """
+        torch.backends.cudnn.deterministic = True
+        torch.use_deterministic_algorithms(True)
+        torch.cuda.manual_seed_all(random_seed)
+        torch.manual_seed(random_seed)
+        np.random.seed(random_seed)
+        random.seed(random_seed)
+
+    def fit(self, x, y):
+        """
+            Training routine for time-series binary classification.
+            :param x: tensor of shape (n_samples, n_timestamps, n_features)
+                A tensor of float-valued data features to use for classification.
+            :param y: tensor of shape (n_samples, n_timestamps, n_features)
+                A tensor of integer-valued monotonically-increasing labels.
+        """
+        # Forcing Determinism
+        generator = torch.Generator()
+        generator.manual_seed(self.random_seed)
+        NetworkPlayground.__reseeding(self.random_seed)
+
+        # Training Variables
+        self.epoch, unimprovement, keep_training = 0, 0, True
+        checkpoint_path = os.path.join("./NN-%d.pt" % self.random_seed)
+
+        # Sliced Test Data
+        dataloader, (x_dev, y_dev), (x_out, y_out) = self.data_preparation(x, y, generator=generator)
+        # Beware of this might overflow the GPU memory depending on the size of the dataset
+        x_dev, y_dev, x_out, y_out = x_dev.cuda(), y_dev.cuda(), x_out.cuda(), y_out.cuda()
+
+        while keep_training:
+            # try:  # Hit CTRL+C to stop training
+            f_losses, d_losses, lr_list = [], [], []
+            bar_format = "{desc}{percentage:3.0f}%|{bar:10}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}{postfix}]{bar:-10b}"
+            with tqdm(dataloader, total=len(dataloader), unit="batch", bar_format=bar_format, disable=(not self.verbose)) as mini_batches:
+                mini_batches.set_description("#%04d" % self.epoch)
+
+                for x_fit, y_fit in mini_batches:
+                    x_fit, y_fit = x_fit.cuda(), y_fit.cuda()
+                    lr_list.append(self.optimizer.param_groups[0]["lr"])
+                    _ = self.__fit(x_fit, y_fit)  # Training the Neural Network
+                    f_losses.append(self.__test(x_fit, y_fit)[0])  # [0] means BCELoss
+                    d_losses.append(self.__test(x_dev, y_dev)[0])  # [0] means BCELoss
+                    y_hat = torch.round(self.predict(x_dev))
+
+                    mini_batches.set_postfix(
+                            stop="%03d" % unimprovement,
+                            rate="%08.7f" % np.mean(lr_list),
+                            a_crs="%05.3f" % np.mean(f_losses),
+                            b_acc="%05.3f" % balanced_accuracy_score(y_out.cpu().numpy(), y_hat),
+                            e_fsc="%05.3f" % f1_score(y_out.cpu().numpy(), y_hat, average="weighted", zero_division=1.),
+                            d_rec="%05.3f" % recall_score(y_out.cpu().numpy(), y_hat, average="weighted", zero_division=1.),
+                            c_pre="%05.3f" % precision_score(y_out.cpu().numpy(), y_hat, average="weighted", zero_division=1.)
+                    )
+
+                current_loss = np.array(d_losses).mean(axis=0)
+                # LR scheduling using the development loss
+                self.scheduler.step(current_loss)
+
+                if min(self.min_loss, current_loss) == current_loss:
+                    unimprovement = unimprovement + 1 if (self.min_loss - current_loss) < self.improvement_threshold else 0
+                    self.min_loss = current_loss  # the minimum training loss is the current one
+                    torch.save({  # saving a snapshot of the current model
+                        "epoch": self.epoch,
+                        "min_loss": self.min_loss,
+                        "model_state_dict": self.state_dict(),
+                        "optimizer_state_dict": self.optimizer.state_dict(),
+                    }, checkpoint_path)  # always overwrites the previous one
+                    if self.epoch > 10 and self.verbose:
+                        y_hat = torch.round(self.predict(x_out))  # Output for the test features
+                        print("\n", classification_report(y_out.cpu().numpy(), y_hat, labels=[0, 1], zero_division=1.))
+                else:
+                    unimprovement += 1
+
+                # Stop training when the patience runs over after not seeing improvements
+                keep_training = False if unimprovement >= self.learning_patience else True
+                self.epoch += 1  # starting a new epoch
+            # except:
+            #     keep_training = False
+
+        # Loading the best epoch from the disk
+        checkpoint = torch.load(checkpoint_path)
+
+        # Restoring previous states
+        self.epoch = checkpoint["epoch"]
+        self.min_loss = checkpoint["min_loss"]
+        self.load_state_dict(checkpoint["model_state_dict"])
+        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])

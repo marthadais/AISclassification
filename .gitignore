@@ -1,3 +1,5 @@
 data/
 .idea/
+network/*.pt
+network/__pycache__/
 preprocessing/__pycache__/
