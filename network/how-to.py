@@ -52,7 +52,7 @@ hyperparameters = {
 	"scheduler_patience": 5,
 	"scheduler_factor": 0.9,
 	"learning_patience": 15,
-	"recurrent_unit": "LSTM",
+	"recurrent_unit": "LSTM",  # "RNN", "GRU", or "LSTM"
 	"random_seed": random_seed,
 	"improvement_threshold": 0.1,
 }

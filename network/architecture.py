@@ -294,54 +294,54 @@ class NetworkPlayground(torch.nn.Module):
         x_dev, y_dev, x_out, y_out = x_dev.cuda(), y_dev.cuda(), x_out.cuda(), y_out.cuda()
 
         while keep_training:
-            # try:  # Hit CTRL+C to stop training
-            f_losses, d_losses, lr_list = [], [], []
-            bar_format = "{desc}{percentage:3.0f}%|{bar:10}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}{postfix}]{bar:-10b}"
-            with tqdm(dataloader, total=len(dataloader), unit="batch", bar_format=bar_format, disable=(not self.verbose)) as mini_batches:
-                mini_batches.set_description("#%04d" % self.epoch)
+            try:  # Hit CTRL+C to stop training
+                f_losses, d_losses, lr_list = [], [], []
+                bar_format = "{desc}{percentage:3.0f}%|{bar:10}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}{postfix}]{bar:-10b}"
+                with tqdm(dataloader, total=len(dataloader), unit="batch", bar_format=bar_format, disable=(not self.verbose)) as mini_batches:
+                    mini_batches.set_description("#%04d" % self.epoch)
 
-                for x_fit, y_fit in mini_batches:
-                    x_fit, y_fit = x_fit.cuda(), y_fit.cuda()
-                    lr_list.append(self.optimizer.param_groups[0]["lr"])
-                    _ = self.__fit(x_fit, y_fit)  # Training the Neural Network
-                    f_losses.append(self.__test(x_fit, y_fit)[0])  # [0] means BCELoss
-                    d_losses.append(self.__test(x_dev, y_dev)[0])  # [0] means BCELoss
-                    y_hat = torch.round(self.predict(x_dev))
+                    for x_fit, y_fit in mini_batches:
+                        x_fit, y_fit = x_fit.cuda(), y_fit.cuda()
+                        lr_list.append(self.optimizer.param_groups[0]["lr"])
+                        _ = self.__fit(x_fit, y_fit)  # Training the Neural Network
+                        f_losses.append(self.__test(x_fit, y_fit)[0])  # [0] means BCELoss
+                        d_losses.append(self.__test(x_dev, y_dev)[0])  # [0] means BCELoss
+                        y_hat = torch.round(self.predict(x_dev))
 
-                    mini_batches.set_postfix(
-                            stop="%03d" % unimprovement,
-                            rate="%08.7f" % np.mean(lr_list),
-                            a_crs="%05.3f" % np.mean(f_losses),
-                            b_acc="%05.3f" % balanced_accuracy_score(y_out.cpu().numpy(), y_hat),
-                            e_fsc="%05.3f" % f1_score(y_out.cpu().numpy(), y_hat, average="weighted", zero_division=1.),
-                            d_rec="%05.3f" % recall_score(y_out.cpu().numpy(), y_hat, average="weighted", zero_division=1.),
-                            c_pre="%05.3f" % precision_score(y_out.cpu().numpy(), y_hat, average="weighted", zero_division=1.)
-                    )
+                        mini_batches.set_postfix(
+                                stop="%03d" % unimprovement,
+                                rate="%08.7f" % np.mean(lr_list),
+                                a_crs="%05.3f" % np.mean(f_losses),
+                                b_acc="%05.3f" % balanced_accuracy_score(y_out.cpu().numpy(), y_hat),
+                                e_fsc="%05.3f" % f1_score(y_out.cpu().numpy(), y_hat, average="weighted", zero_division=1.),
+                                d_rec="%05.3f" % recall_score(y_out.cpu().numpy(), y_hat, average="weighted", zero_division=1.),
+                                c_pre="%05.3f" % precision_score(y_out.cpu().numpy(), y_hat, average="weighted", zero_division=1.)
+                        )
 
-                current_loss = np.array(d_losses).mean(axis=0)
-                # LR scheduling using the development loss
-                self.scheduler.step(current_loss)
+                    current_loss = np.array(d_losses).mean(axis=0)
+                    # LR scheduling using the development loss
+                    self.scheduler.step(current_loss)
 
-                if min(self.min_loss, current_loss) == current_loss:
-                    unimprovement = unimprovement + 1 if (self.min_loss - current_loss) < self.improvement_threshold else 0
-                    self.min_loss = current_loss  # the minimum training loss is the current one
-                    torch.save({  # saving a snapshot of the current model
-                        "epoch": self.epoch,
-                        "min_loss": self.min_loss,
-                        "model_state_dict": self.state_dict(),
-                        "optimizer_state_dict": self.optimizer.state_dict(),
-                    }, checkpoint_path)  # always overwrites the previous one
-                    if self.epoch > 10 and self.verbose:
-                        y_hat = torch.round(self.predict(x_out))  # Output for the test features
-                        print("\n", classification_report(y_out.cpu().numpy(), y_hat, labels=[0, 1], zero_division=1.))
-                else:
-                    unimprovement += 1
+                    if min(self.min_loss, current_loss) == current_loss:
+                        unimprovement = unimprovement + 1 if (self.min_loss - current_loss) < self.improvement_threshold else 0
+                        self.min_loss = current_loss  # the minimum training loss is the current one
+                        torch.save({  # saving a snapshot of the current model
+                            "epoch": self.epoch,
+                            "min_loss": self.min_loss,
+                            "model_state_dict": self.state_dict(),
+                            "optimizer_state_dict": self.optimizer.state_dict(),
+                        }, checkpoint_path)  # always overwrites the previous one
+                        if self.epoch > 10 and self.verbose:
+                            y_hat = torch.round(self.predict(x_out))  # Output for the test features
+                            print("\n", classification_report(y_out.cpu().numpy(), y_hat, labels=[0, 1], zero_division=1.))
+                    else:
+                        unimprovement += 1
 
-                # Stop training when the patience runs over after not seeing improvements
-                keep_training = False if unimprovement >= self.learning_patience else True
-                self.epoch += 1  # starting a new epoch
-            # except:
-            #     keep_training = False
+                    # Stop training when the patience runs over after not seeing improvements
+                    keep_training = False if unimprovement >= self.learning_patience else True
+                    self.epoch += 1  # starting a new epoch
+            except:
+                keep_training = False
 
         # Loading the best epoch from the disk
         checkpoint = torch.load(checkpoint_path)
