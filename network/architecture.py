@@ -1,5 +1,8 @@
 import torch
 import numpy as np
+import multiprocessing as mp
+from torch.utils.data import TensorDataset, DataLoader
+from torch.nn import RNN, GRU, LSTM, TransformerEncoderLayer
 
 
 class MyNetwork(torch.nn.Module):
@@ -131,3 +134,86 @@ class MyNetwork(torch.nn.Module):
             self.MSELoss(y_pred, y).cpu().numpy(),  # Mean Squared Error (MSE)
             self.HuberLoss(y_pred, y).cpu().numpy(),  # Huber Loss (HL)
         ])
+
+    def data_preparation(self, x, y, batch_size=32, shuffle=True, normalize_data=True, num_workers=1, drop_last=True):
+        """
+        Iterates over the time axis, segmenting the time series for neural network training.
+        :param x: tensor of shape (n_samples, n_timestamps, n_features)
+            A tensor of float-valued data features to use for classification.
+        :param y: tensor of shape (n_samples, n_timestamps, n_features)
+            A tensor of integer-valued monotonically-increasing labels.
+        :param batch_size: integer
+            How many samples per batch to load.
+        :param shuffle: boolean
+            Set to True to have the data reshuffled at every epoch.
+        :param normalize_data: boolean
+            If True applies z-score followed by min-max normalization on the features.
+        :param num_workers: integer
+            How many subprocesses to use for data loading (set to -1 for all).
+        :param drop_last: boolean
+            Set to True to drop the last batch if incomplete.
+        """
+        slice_ids = [[], [], []]
+        xt_list, yt_list = [], []
+        # Isolating the test data from the end of the dataset
+        w_start, w_end = (x.shape[1] - self.window, x.shape[1])
+        for _ in range(self.horizon):  # Samples reserved for testing
+            assert w_start >= 0, "Invalid arguments."
+            slice_ids[2].append((w_start, w_end))
+            xt_list.append(x[:, w_start:w_end, :])
+            yt_list.append(y[:, w_end - 1])
+            # Iterates over the temporal axis extracting the test data
+            w_start, w_end = (w_start - self.window, w_end - self.window)
+        xt, yt = torch.stack(xt_list), torch.stack(yt_list)
+
+        xd_list, yd_list = [], []
+        # Separating the development data right before the test data
+        for _ in range(self.development):  # Samples reserved for development
+            assert w_start >= 0, "Invalid arguments."
+            slice_ids[1].append((w_start, w_end))
+            xd_list.append(x[:, w_start:w_end, :])
+            yd_list.append(y[:, w_end - 1])
+            # Iterates over the temporal axis extracting the test data
+            w_start, w_end = (w_start - self.window, w_end - self.window)
+        xd, yd = torch.stack(xd_list), torch.stack(yd_list)
+
+        x_list, y_list = [], []
+        # Train ends on 0 and starts on w-end
+        for idx in range(w_end, self.window - 1, -1):
+            w_start, w_end = (idx - self.window, idx)
+            assert w_start >= 0, "Invalid arguments."
+            slice_ids[0].append((w_start, w_end))
+            x_list.append(x[:, w_start:w_end, :])
+            y_list.append(y[:, w_end - 1])
+        x, y = torch.stack(x_list), torch.stack(y_list)
+
+        # Checking for data leaking by intersecting indices (no leaking means an empty set)
+        assert len(set(slice_ids[0]) & (set(slice_ids[1]) | set(slice_ids[2]))) == 0
+
+        if normalize_data:
+            # Z-Score Normalization
+            x_std, x_mean = torch.std_mean(x, dim=(0, 2), unbiased=False, keepdim=True)
+            x_std[x_std == 0] = 1  # Avoid zero division
+            x = (x - x_mean) / x_std  # Training Data
+            xd = (xd - x_mean) / x_std  # Tuning Data
+            xt = (xt - x_mean) / x_std  # Test Data
+            # Min-Max Normalization
+            x_max = x.amax(dim=(0, 2), keepdim=True)
+            x_min = x.amin(dim=(0, 2), keepdim=True)
+            x_max[x_max == 0] = 1  # Avoid zero division
+            x = (x - x_min) / (x_max - x_min)  # Training Data
+            xd = (xd - x_min) / (x_max - x_min)  # Tuning Data
+            xt = (xt - x_min) / (x_max - x_min)  # Test Data
+
+        # The batches are CPU-pinned for quicker GPU transfer
+        dataloader = DataLoader(dataset=TensorDataset(*[x.view(-1, *x.shape[-2:]), y.view(-1,)]),
+                                num_workers=max(0, min(num_workers, mp.cpu_count())),
+                                batch_size=batch_size, shuffle=shuffle,
+                                drop_last=drop_last, pin_memory=True)
+
+        # Enforcing the shape of the input tuning and test data on reserved RAM address
+        xd, yd = xd.view(-1, *xd.shape[-2:]).pin_memory(), yd.view(-1,).pin_memory()
+        xt, yt = xt.view(-1, *xt.shape[-2:]).pin_memory(), yt.view(-1,).pin_memory()
+
+        # Train, Tuning, and Test data folds
+        return dataloader, [(xd, yd), (xt, yt)]
