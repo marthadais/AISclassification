@@ -3,7 +3,7 @@ from sklearn.cluster import KMeans
 from preprocessing import features as fts
 import os
 
-seconds = 10 # fixed number of observations
+seconds = 10*60 # fixed number of observations
 nc = 10 # number of clusters
 
 print('Reading Dataset')
