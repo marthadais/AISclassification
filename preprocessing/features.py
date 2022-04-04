@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from datetime import timedelta
+from itertools import groupby
 
 
 def remove_short_trajectories(data, n_obs=100):
@@ -174,3 +175,42 @@ def get_features(data, win=10):
     features = pd.concat([features, MA_data], axis=1)
 
     return features
+
+
+def posprocessing(x, min_points=1, verbose=False, labels2=True):
+    """
+    It applies a pos-processing on the clustering labels.
+    It changes the label of the current observation to the previous one
+     when the current observation and the next ones of same label have less
+     than a minimum number
+    It also converts lines as cluster 0 and curves as cluster 1
+    :param x: labels sequence (array)
+    :param min_points: minimum number in the sequence to change the label
+    :param verbose: if True, it will print something
+    :param labels2: if True, converts lines as cluster 0 and curves as cluster 1
+    :return: the new list of labels
+    """
+    lbl = x.tolist()
+
+    if labels2:
+        cl = max(set(lbl), key=lbl.count)
+        x[x != cl] = -1
+        x[x == cl] = 0
+        lbl = list(abs(x))
+
+    new_list = []
+    c=0
+    for k, g in groupby(lbl):
+        s = list(g)
+        if verbose:
+            print(f'{c} of {len(lbl)}')
+        if len(s) == min_points:
+            if len(new_list) == 0:
+                new_list = new_list + [0]
+            else:
+                new_list = new_list + [new_list[-1] for i in range(min_points)]
+        else:
+            new_list = new_list + s
+        c = c+1
+
+    return new_list
