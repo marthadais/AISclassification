@@ -35,5 +35,5 @@ dataset['labels'] = labels2
 # Saving
 # index of a few trajectories to quickly evaluate
 test = dataset[dataset['trajectory'].isin([213, 117, 145, 26, 11])]
-test.to_csv(f'fishing_5_{nc}_{seconds}.csv', index=False)
-dataset.to_csv(f'fishing_{nc}_{seconds}.csv', index=False)
+test.to_csv(f'2-fishing_5_{nc}_{seconds}.csv', index=False)
+dataset.to_csv(f'2-fishing_{nc}_{seconds}.csv', index=False)
