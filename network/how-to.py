@@ -4,7 +4,7 @@
 #  This code is under GNU General Public License v3.0.
 #      www.spadon.com.br & gabriel@spadon.com.br
 #
-# For reproducibility set "CUBLAS_WORKSPACE_CONFIG=:16:8" as environment variable.
+# This script requires setting "CUBLAS_WORKSPACE_CONFIG=:16:8" as an environment variable.
 
 import torch
 import random
