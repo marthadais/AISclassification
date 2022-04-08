@@ -102,9 +102,9 @@ class NetworkPlayground(torch.nn.Module):
 		x, _ = self.RNN(x)
 		if self.bidirectional:
 			x = x.view(-1, self.window, 2, self.hidden_size)
-			x = x.sum(axis=2)  # merging temporal branches by summing them
-		x = self.Linear1(x.permute(0, 2, 1))  # linearly reduces the sequences
-		x = self.Linear2(x.permute(0, 2, 1))  # maps variables into classes
+			x = x.sum(axis=2)  # merging temporal branches
+		x = self.Linear2(x)  # mapping variables into classes
+		x = self.Linear1(x.permute(0, 2, 1))  # reducing the sequence
 		return self.Sigmoid(torch.squeeze(x))  # BCE requires a Sigmoid
 
 	def __fit(self, x, y):
@@ -164,14 +164,14 @@ class NetworkPlayground(torch.nn.Module):
 		"""
 		self.eval()
 		with torch.no_grad():
-			return self.forward(x).cpu()
+			return torch.round(self.forward(x).cpu())
 
-	def data_preparation(self, x, y, generator, num_workers=cpu_count(), drop_last=True):
+	def data_preparation(self, xin_list, yin_list, generator, num_workers=cpu_count(), drop_last=True):
 		"""
 		Iterates over the time axis, segmenting the time series for neural network training.
-		:param x: tensor of shape (n_samples, n_timestamps, n_features)
+		:param xin_list: a list of tensors of shape (n_timestamps, n_features)
 			A tensor of float-valued data features to use for classification.
-		:param y: tensor of shape (n_samples, n_timestamps, n_features)
+		:param yin_list: a list of tensors of shape (n_timestamps, n_features)
 			A tensor of integer-valued monotonically-increasing labels.
 		:param generator: object
 			Generator that manages the state of the pseudo-random numbers algorithm.
@@ -180,54 +180,71 @@ class NetworkPlayground(torch.nn.Module):
 		:param drop_last: boolean
 			Set to True to drop the last batch if incomplete.
 		"""
-		slice_ids = [[], [], []]  # used for validation
+		xf, yf, xt, yt, xd, yd = [], [], [], [], [], []
 
-		xt_list, yt_list = [], []
-		# Isolating the test data from the end of the dataset
-		w_start, w_end = (x.shape[1] - self.window, x.shape[1])
-		for _ in range(self.test_samples):
-			assert w_start >= 0, "Invalid arguments."
-			slice_ids[2].append((w_start, w_end))
-			xt_list.append(x[:, w_start:w_end, :])
-			yt_list.append(y[:, w_end - 1])
-			# Iterates over the temporal axis extracting the test data
-			w_start, w_end = (w_start - self.window, w_end - self.window)
-		xt, yt = torch.stack(xt_list), torch.stack(yt_list)
+		for x, y in zip(xin_list, yin_list):
+			slice_ids = [[], [], []]  # used for validation
+			try:  # will fail whenever the series is too small on the temporal axis
 
-		xd_list, yd_list = [], []
-		# Separating the tuning data right before the test data
-		for _ in range(self.tuning_samples):
-			assert w_start >= 0, "Invalid arguments."
-			slice_ids[1].append((w_start, w_end))
-			xd_list.append(x[:, w_start:w_end, :])
-			yd_list.append(y[:, w_end - 1])
-			# Iterates over the temporal axis extracting the test data
-			w_start, w_end = (w_start - self.window, w_end - self.window)
-		xd, yd = torch.stack(xd_list), torch.stack(yd_list)
+				xt_list, yt_list = [], []
+				# Isolating the test data from the end of the dataset
+				w_start, w_end = (x.shape[0] - self.window, x.shape[0])
+				for _ in range(self.test_samples):
+					assert w_start >= 0, "Invalid arguments."
+					slice_ids[2].append((w_start, w_end))
+					xt_list.append(x[w_start:w_end, :])
+					yt_list.append(y[w_end - 1])
+					# Iterates over the temporal axis extracting the test data
+					w_start, w_end = (w_start - self.window, w_end - self.window)
 
-		x_list, y_list = [], []
-		# Train ends on 0 and starts on w-end
-		for idx in range(w_end, self.window - 1, -1):
-			w_start, w_end = (idx - self.window, idx)
-			assert w_start >= 0, "Invalid arguments."
-			slice_ids[0].append((w_start, w_end))
-			x_list.append(x[:, w_start:w_end, :])
-			y_list.append(y[:, w_end - 1])
-		x, y = torch.stack(x_list), torch.stack(y_list)
+				xd_list, yd_list = [], []
+				# Separating the tuning data right before the test data
+				for _ in range(self.tuning_samples):
+					assert w_start >= 0, "Invalid arguments."
+					slice_ids[1].append((w_start, w_end))
+					xd_list.append(x[w_start:w_end, :])
+					yd_list.append(y[w_end - 1])
+					# Iterates over the temporal axis extracting the test data
+					w_start, w_end = (w_start - self.window, w_end - self.window)
 
-		# Checking for data leaking by intersecting indices (no leaking means an empty set)
-		assert len(set(slice_ids[0]) & (set(slice_ids[1]) | set(slice_ids[2]))) == 0
+				x_list, y_list = [], []
+				# Train ends on 0 and starts on w-end
+				for idx in range(w_end, self.window - 1, -1):
+					w_start, w_end = (idx - self.window, idx)
+					assert w_start >= 0, "Invalid arguments."
+					slice_ids[0].append((w_start, w_end))
+					x_list.append(x[w_start:w_end, :])
+					y_list.append(y[w_end - 1])
+
+				# Will join the final dataset
+				xt.append(torch.stack(xt_list))
+				yt.append(torch.stack(yt_list))
+				xd.append(torch.stack(xd_list))
+				yd.append(torch.stack(yd_list))
+				xf.append(torch.stack(x_list))
+				yf.append(torch.stack(y_list))
+			except: pass  # Iterate through the next trajectory
+			# Checking for data leaking by intersecting indices (no leaking means an empty set)
+			assert len(set(slice_ids[0]) & (set(slice_ids[1]) | set(slice_ids[2]))) == 0
+
+		# Shared samples as Standard Floats
+		xt = torch.cat(xt).to(torch.float32)
+		yt = torch.cat(yt).to(torch.float32)
+		xd = torch.cat(xd).to(torch.float32)
+		yd = torch.cat(yd).to(torch.float32)
+		x = torch.cat(xf).to(torch.float32)
+		y = torch.cat(yf).to(torch.float32)
 
 		if self.normalize_data:
 			# Z-Score Normalization
-			x_std, x_mean = torch.std_mean(x, dim=(0, 2), unbiased=False, keepdim=True)
+			x_std, x_mean = torch.std_mean(x, dim=0, unbiased=False, keepdim=True)
 			x_std[x_std == 0] = 1  # avoid zero division
 			x = (x - x_mean) / x_std  # training data
 			xd = (xd - x_mean) / x_std  # tuning data
 			xt = (xt - x_mean) / x_std  # test data
-			# Min-Max Normalization
-			x_max = x.amax(dim=(0, 2), keepdim=True)
-			x_min = x.amin(dim=(0, 2), keepdim=True)
+			# Min-Max Normalization.ma
+			x_max = x.amax(dim=0, keepdim=True)
+			x_min = x.amin(dim=0, keepdim=True)
 			x_max[x_max == 0] = 1  # avoid zero division
 			x = (x - x_min) / (x_max - x_min)  # training data
 			xd = (xd - x_min) / (x_max - x_min)  # tuning data
@@ -286,36 +303,37 @@ class NetworkPlayground(torch.nn.Module):
 
 		# Training Variables
 		self.epoch, unimprovement, keep_training = 0, 0, True
-		checkpoint_path = os.path.join("./NN-%d.pt" % self.random_seed)
+		checkpoint_path = os.path.join("./.NN-%d.pt" % self.random_seed)
 
 		# Sliced Test Data
 		dataloader, (x_dev, y_dev), (x_out, y_out) = self.data_preparation(x, y, generator=generator)
 		# Beware of this might overflow the GPU memory depending on the size of the dataset
-		x_dev, y_dev, x_out, y_out = x_dev.cuda(), y_dev.cuda(), x_out.cuda(), y_out.cuda()
+		x_dev, y_dev, x_out, y_out = x_dev.cuda(), y_dev.cpu(), x_out.cuda(), y_out.cpu()
 
 		while keep_training:
 			try:  # Hit CTRL+C to stop training
 				f_losses, d_losses, lr_list = [], [], []
 				bar_format = "{desc}{percentage:3.0f}%|{bar:10}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}{postfix}]{bar:-10b}"
-				with tqdm(dataloader, total=len(dataloader), unit="batch", bar_format=bar_format, disable=(not self.verbose)) as mini_batches:
+				with tqdm(dataloader, total=len(dataloader), unit="batch", bar_format=bar_format, disable=(not self.verbose), ncols=200) as mini_batches:
 					mini_batches.set_description("#%04d" % self.epoch)
 
 					for x_fit, y_fit in mini_batches:
 						x_fit, y_fit = x_fit.cuda(), y_fit.cuda()
-						lr_list.append(self.optimizer.param_groups[0]["lr"])
-						_ = self.__fit(x_fit, y_fit)  # Training the Neural Network
-						f_losses.append(self.__test(x_fit, y_fit)[0])  # [0] means BCELoss
-						d_losses.append(self.__test(x_dev, y_dev)[0])  # [0] means BCELoss
-						y_hat = torch.round(self.predict(x_dev))
+						_ = self.__fit(x_fit, y_fit)  # Training the Network
+						y_fit, yx_fit = y_fit.cpu(), self.predict(x_fit)
+						y_dev, yx_dev = y_dev.cpu(), self.predict(x_dev)
+						y_out, yx_out = y_out.cpu(), self.predict(x_out)
+						d_losses.append(self.BCE(yx_dev, y_dev))
 
 						mini_batches.set_postfix(
 								stop="%03d" % unimprovement,
-								rate="%08.7f" % np.mean(lr_list),
-								a_crs="%05.3f" % np.mean(f_losses),
-								b_acc="%05.3f" % balanced_accuracy_score(y_out.cpu().numpy(), y_hat),
-								e_fsc="%05.3f" % f1_score(y_out.cpu().numpy(), y_hat, average="weighted", zero_division=1.),
-								d_rec="%05.3f" % recall_score(y_out.cpu().numpy(), y_hat, average="weighted", zero_division=1.),
-								c_pre="%05.3f" % precision_score(y_out.cpu().numpy(), y_hat, average="weighted", zero_division=1.)
+								rate="%08.7f" % self.optimizer.param_groups[0]["lr"],
+								a_acc="%05.3f" % balanced_accuracy_score(y_fit, yx_fit),
+								a_fsc="%05.3f" % f1_score(y_fit, yx_fit, average="weighted", zero_division=1.),
+								b_acc="%05.3f" % balanced_accuracy_score(y_dev, yx_dev),
+								b_fsc="%05.3f" % f1_score(y_dev, yx_dev, average="weighted", zero_division=1.),
+								c_acc="%05.3f" % balanced_accuracy_score(y_out, yx_out),
+								c_fsc="%05.3f" % f1_score(y_out, yx_out, average="weighted", zero_division=1.),
 						)
 
 					current_loss = np.array(d_losses).mean(axis=0)
@@ -331,9 +349,8 @@ class NetworkPlayground(torch.nn.Module):
 							"model_state_dict": self.state_dict(),
 							"optimizer_state_dict": self.optimizer.state_dict(),
 						}, checkpoint_path)  # always overwrites the previous one
-						if self.epoch > 10 and self.verbose:
-							y_hat = torch.round(self.predict(x_out))  # Output for the test features
-							print("\n", classification_report(y_out.cpu().numpy(), y_hat, labels=[0, 1], zero_division=1.))
+						if self.verbose:
+							print("\n", classification_report(y_out.cpu().numpy(), self.predict(x_out), labels=[0, 1], zero_division=1.))
 					else:
 						unimprovement += 1
 
