@@ -29,7 +29,7 @@ hyperparameters = {
 	"variables": 4,
 	"shuffle": True,
 	"verbose": True,
-	"batch_size": 128,
+	"batch_size": 256,
 	"hidden_size": 128,
 	"test_samples": 30,
 	"use_amsgrad": True,
@@ -40,9 +40,9 @@ hyperparameters = {
 	"bidirectional": True,
 	"normalize_data": True,
 	"learning_rate": 0.001,
-	"scheduler_patience": 5,
+	"scheduler_patience": 3,
 	"scheduler_factor": 0.9,
-	"learning_patience": 15,
+	"learning_patience": 10,
 	"recurrent_unit": "LSTM",  # "RNN", "GRU", or "LSTM"
 	"random_seed": random_seed,
 	"improvement_threshold": 0.1,
@@ -71,6 +71,17 @@ def batchfy_data(df, window=hyperparameters["window"]):
 	return x, y
 
 
+print("\n>>> Features #1")
 x, y = batchfy_data(dfa)
+mynn = NetworkPlayground(**hyperparameters).cuda()
+mynn.fit(x, y)
+
+print("\n>>> Features #2")
+x, y = batchfy_data(dfb)
+mynn = NetworkPlayground(**hyperparameters).cuda()
+mynn.fit(x, y)
+
+print("\n>>> Features #3")
+x, y = batchfy_data(dfc)
 mynn = NetworkPlayground(**hyperparameters).cuda()
 mynn.fit(x, y)
