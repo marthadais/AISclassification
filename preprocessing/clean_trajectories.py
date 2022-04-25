@@ -101,7 +101,7 @@ def create_dataset_noaa(path, time_period, vt=None):
     :param vt: vessel type
     :return: path where the csv file was saved
     """
-    columns_read = ['MMSI', 'BaseDateTime', 'LAT', 'LON', 'SOG', 'COG', 'Heading', 'VesselType']
+    columns_read = ['MMSI', 'BaseDateTime', 'LAT', 'LON', 'SOG', 'COG', 'Status', 'VesselType']
     dataset = pd.DataFrame()
     mmsis = np.array([])
     for curr_date in date_range(time_period[0], time_period[1]+timedelta(days=1)):
@@ -123,8 +123,8 @@ def create_dataset_noaa(path, time_period, vt=None):
     dataset['VesselType'] = dataset['VesselType'].fillna(-1)
     dataset['VesselType'] = dataset['VesselType'].astype(int)
 
-    dataset = dataset[['MMSI', 'BaseDateTime', 'LAT', 'LON', 'SOG', 'COG', 'VesselType']]
-    dataset.columns = ['mmsi', 'time', 'lat', 'lon', 'sog', 'cog', 'vessel_type']
+    dataset = dataset[['MMSI', 'BaseDateTime', 'LAT', 'LON', 'SOG', 'COG', 'Status', 'VesselType']]
+    dataset.columns = ['mmsi', 'time', 'lat', 'lon', 'sog', 'cog', 'status', 'vessel_type']
 
     dataset.to_csv(path, index=False)
 
@@ -160,7 +160,7 @@ class Trajectories:
         self._nsamples = n_samples
         self._vt = vessel_type
         self._vessel_types = None
-        self._columns_set = ['lat', 'lon', 'cog', 'sog']
+        self._columns_set = ['lat', 'lon', 'cog', 'sog', 'status']
         # it just considers trajectories with more than such number of observations
         self.min_obs = min_obs
         if self.min_obs < 2:
