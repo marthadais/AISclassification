@@ -50,6 +50,15 @@ if not os.path.exists(file_name):
     sample_fishing = dataset[dataset['trajectory'].isin(trajs)]
     sample_fishing.to_csv(f'{folder}/sample_fishing_{nc}_{win}.csv', index=False)
     dataset.to_csv(file_name, index=False)
+
+    t_size = len(dataset['trajectory'].unique())
+    idx_train = list(range(round(t_size * 0.7)))
+    data_train = dataset[dataset['trajectory'].isin(idx_train)]
+    data_train.to_csv(f'{folder}/train_fishing_{nc}_{win}.csv', index=False)
+    idx_test = list(range(round(t_size * 0.7), t_size))
+    data_test = dataset[dataset['trajectory'].isin(idx_test)]
+    data_test.to_csv(f'{folder}/test_fishing_{nc}_{win}.csv', index=False)
+
 else:
     print('Reading clustering files')
     dataset = pd.read_csv(file_name)
