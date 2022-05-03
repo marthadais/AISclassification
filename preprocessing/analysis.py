@@ -185,45 +185,106 @@ plt.close()
 
 def images_eval():
     import matplotlib.pyplot as plt
+    from ast import literal_eval
+    import numpy as np
 
-    win_size = 16
-    for win in range(5, win_size):
-        seconds = win*60
-        folder = f'./results/observations_{win}/'
-        eval_obs = pd.read_csv(f'{folder}/measures.csv')
-        folder = f'./results/time_{seconds}/'
-        eval_time = pd.read_csv(f'{folder}/measures.csv')
-        print(eval_obs.mean(axis=1))
-        print(eval_time.mean(axis=1))
+    eval_obs = pd.read_csv(f'./results/observations/measures.csv', index_col=0)
+    eval_time = pd.read_csv(f'./results/time/measures.csv', index_col=0)
+
+    for iter in range(2, 21):
+        # iter = 8
+        # seconds = iter*60
+        # obs_d = eval_obs.loc[:, str(iter)].apply(lambda x: literal_eval(x)[0])
+        # time_d = eval_time.loc[:, str(seconds)].apply(lambda x: literal_eval(x)[0])
+        # index_d = eval_obs.index
+        obs_d = eval_obs.loc[iter, :].apply(lambda x: literal_eval(x)[0])
+        time_d = eval_time.loc[iter, :].apply(lambda x: literal_eval(x)[0])
+        index_d = eval_obs.columns
 
         fig = plt.figure(figsize=(10, 7))
-        plt.plot(eval_obs.columns, eval_time.loc[1, :], marker="p", linestyle="-", linewidth=2,
-                 markersize=7, label='time')
-        plt.plot(eval_obs.columns, eval_obs.loc[1, :], marker="p", linestyle="-", linewidth=2,
-                 markersize=7, label='obs')
-        plt.title('K-means8')
-        plt.ylabel('DBI', fontsize=20)
-        plt.xlabel('Number of clusters', fontsize=20)
+        plt.plot(index_d, time_d, marker="p", linestyle="-", linewidth=2,
+                 markersize=7, label='time-based')
+        plt.plot(index_d, obs_d, marker="p", linestyle="-", linewidth=2,
+                 markersize=7, label='message-based')
+        plt.plot(index_d, np.repeat(0.5, len(obs_d)), color='black', linestyle="-", linewidth=2, label='threshold')
+        plt.title(f'K-means - {iter} obs')
+        plt.ylabel('DBI', fontsize=15)
+        plt.xlabel('Number of messages and minutes', fontsize=15)
+        # plt.xlabel('Number of clusters', fontsize=15)
         plt.legend(fontsize=20)
-        plt.xticks(eval_obs.columns, eval_obs.columns, fontsize=15, rotation=90)
-        plt.yticks(fontsize=20)
+        plt.xticks(index_d, index_d, fontsize=15)
+        plt.yticks(np.arange(0.38, 0.55, step=0.02), fontsize=15)
         plt.tight_layout()
         plt.show()
+        # plt.savefig(f'../results/DBI_{iter}.png', bbox_inches='tight')
+        # plt.close()
+
+    # average n cluster
+    line_obs = []
+    line_time = []
+    for iter in range(5, 16):
+        seconds = iter*60
+        obs_d = eval_obs.loc[:, str(iter)].apply(lambda x: literal_eval(x)[0])
+        time_d = eval_time.loc[:, str(seconds)].apply(lambda x: literal_eval(x)[0])
+        index_d = eval_obs.columns
+        line_obs.append(obs_d.mean())
+        line_time.append(time_d.mean())
+
+    fig = plt.figure(figsize=(10, 7))
+    plt.plot(index_d, line_time, marker="p", linestyle="-", linewidth=2,
+             markersize=7, label='time')
+    plt.plot(index_d, line_obs, marker="p", linestyle="-", linewidth=2,
+             markersize=7, label=f'observation')
+    # plt.title(f'K-means - {iter} clusters')
+    plt.ylabel('Average of DBI', fontsize=15)
+    plt.xlabel('Number of observation and minutes', fontsize=15)
+    plt.legend(fontsize=20)
+    plt.xticks(index_d, index_d, fontsize=15)
+    plt.yticks(np.arange(0.47, 0.51, step=0.005), fontsize=15)
+    plt.tight_layout()
+    plt.show()
+
+
+    # average n obs
+    line_obs = []
+    line_time = []
+    for iter in range(2, 16):
+        obs_d = eval_obs.loc[iter, :].apply(lambda x: literal_eval(x)[0])
+        time_d = eval_time.loc[iter, :].apply(lambda x: literal_eval(x)[0])
+        index_d = eval_obs.index
+        line_obs.append(obs_d.mean())
+        line_time.append(time_d.mean())
+
+    fig = plt.figure(figsize=(10, 7))
+    plt.plot(index_d, line_time, marker="p", linestyle="-", linewidth=2,
+             markersize=7, label='time')
+    plt.plot(index_d, line_obs, marker="p", linestyle="-", linewidth=2,
+             markersize=7, label=f'observation')
+    # plt.title(f'K-means - {iter} clusters')
+    plt.ylabel('Average of DBI', fontsize=15)
+    plt.xlabel('Number of clusters', fontsize=15)
+    plt.legend(fontsize=20)
+    plt.xticks(index_d, index_d, fontsize=15)
+    plt.yticks(np.arange(0.40, 0.55, step=0.01), fontsize=15)
+    plt.tight_layout()
+    plt.show()
+
+
     # plt.savefig(f'{folder}/lines-compression-{item}.png', bbox_inches='tight')
     # plt.close()
 
-    fig = plt.figure(figsize=(10, 7))
-    plt.plot(eval_obs.columns, eval_time.loc[3, :], marker="p", linestyle="-", linewidth=2,
-             markersize=7, label='time')
-    plt.plot(eval_obs.columns, eval_obs.loc[3, :], marker="p", linestyle="-", linewidth=2,
-             markersize=7, label='obs')
-    plt.title('Pos-processing')
-    plt.ylabel('DBI', fontsize=20)
-    plt.xlabel('Number of clusters', fontsize=20)
-    plt.legend(fontsize=20)
-    plt.xticks(eval_obs.columns, eval_obs.columns, fontsize=15, rotation=90)
-    plt.yticks(fontsize=20)
-    plt.tight_layout()
-    plt.show()
+    # fig = plt.figure(figsize=(10, 7))
+    # plt.plot(eval_obs.columns, eval_time.loc[3, :], marker="p", linestyle="-", linewidth=2,
+    #          markersize=7, label='time')
+    # plt.plot(eval_obs.columns, eval_obs.loc[3, :], marker="p", linestyle="-", linewidth=2,
+    #          markersize=7, label='obs')
+    # plt.title('Pos-processing')
+    # plt.ylabel('DBI', fontsize=20)
+    # plt.xlabel('Number of clusters', fontsize=20)
+    # plt.legend(fontsize=20)
+    # plt.xticks(eval_obs.columns, eval_obs.columns, fontsize=15, rotation=90)
+    # plt.yticks(fontsize=20)
+    # plt.tight_layout()
+    # plt.show()
     # plt.savefig(f'{folder}/lines-compression-{item}.png', bbox_inches='tight')
     # plt.close()

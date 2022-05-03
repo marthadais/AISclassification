@@ -2,7 +2,7 @@ import pandas as pd
 from sklearn.cluster import KMeans
 from preprocessing import features as fts
 import os
-from sklearn.metrics import davies_bouldin_score
+from sklearn.metrics import davies_bouldin_score, silhouette_score
 
 folder = './results/time_final/'
 if not os.path.exists(folder):
@@ -37,13 +37,13 @@ if not os.path.exists(file_name):
     # Clustering
     model = KMeans(nc).fit(data_cl)
     labels = model.labels_
-    data_cl.loc['labels'] = labels
-    dataset.loc['labels'] = labels
+    data_cl['labels'] = labels
+    dataset['labels'] = labels
 
     print('Pos-processing')
     labels2 = fts.posprocessing_2(dataset, min_points=5)['labels']
-    data_cl.loc['labels_pos'] = labels2
-    dataset.loc['labels_pos'] = labels2
+    data_cl['labels_pos'] = labels2
+    dataset['labels_pos'] = labels2
 
     # Saving
     # index of a few trajectories to quickly evaluate
@@ -71,3 +71,16 @@ DBI = davies_bouldin_score(features[['ma_t_acceleration', 'msum_t_roc']], datase
 print(f'DBI data = {DBI}')
 DBI = davies_bouldin_score(features[['ma_t_acceleration', 'msum_t_roc']], dataset['labels_pos'])
 print(f'DBI pos data = {DBI}')
+
+from sklearn.metrics.pairwise import euclidean_distances
+from preprocessing.dunn_index import dunn_index
+import numpy as np
+idx = data_cl.index.to_list()
+np.random.shuffle(idx)
+k = round(len(idx)*0.01)
+idx = idx[0:k]
+dunn = dunn_index(dataset.loc[idx, 'labels'], features.loc[idx, ['ma_t_acceleration', 'msum_t_roc']])
+print(f'DUNN index data = {dunn}')
+sil = silhouette_score(features.loc[idx, ['ma_t_acceleration', 'msum_t_roc']], dataset.loc[idx, 'labels'])
+print(f'DUNN index data = {sil}')
+
