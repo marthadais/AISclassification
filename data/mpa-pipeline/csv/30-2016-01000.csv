@@ -1,0 +1,4 @@
+,mmsi,time,lon,lat,imo,vessel_name,dim_bow,dim_stern,dim_port,dim_star,ship_type,ship_type_txt
+0,316058000,1461869939,-53.8031983333,48.591245,8320444,GEORGE R PEARKES,33,50,9,7,51,Search and rescue vessels
+1,316058000,1461870174,-53.8041983333,48.5905433333,8320444,GEORGE R PEARKES,33,50,9,7,51,Search and rescue vessels
+2,316058000,1461870220,-53.8043816667,48.5904166667,8320444,GEORGE R PEARKES,33,50,9,7,51,Search and rescue vessels

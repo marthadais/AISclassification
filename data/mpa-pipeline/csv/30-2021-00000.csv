@@ -1,0 +1,5 @@
+,mmsi,time,lon,lat,imo,vessel_name,dim_bow,dim_stern,dim_port,dim_star,ship_type,ship_type_txt
+0,316002547,1623431743,-53.817605,48.57767166666667,,CCG C26616NL,5,3,1,1,51,Search and rescue vessels
+1,316002547,1623602833,-53.818305,48.577985,,CCG C26616NL,5,3,1,1,51,Search and rescue vessels
+2,316003160,1622913507,-53.816581666666664,48.577825,,CCG C17170NL,5,3,1,1,51,Search and rescue vessels
+3,316003160,1636208935,-53.81392666666667,48.578115,,CCG C17170NL,5,3,1,1,51,Search and rescue vessels

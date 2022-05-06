@@ -1,0 +1,3 @@
+,mmsi,time,lon,lat,imo,vessel_name,dim_bow,dim_stern,dim_port,dim_star,ship_type,ship_type_txt
+0,316002804,1635614221,-55.97822333333333,52.563525,,,,,,,,
+1,316013450,1620402915,-55.88585333333333,52.562036666666664,,,7,12,5,2,30,Fishing
