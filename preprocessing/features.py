@@ -154,10 +154,13 @@ def get_features_time(data, eps=180):
     features = features[['trajectory', 'time', 'sog', 'cog']]
 
     features['roc'] = diff_cog(features['cog'])
+    features['acceleration'] = features['sog'].diff()/features['time'].diff().dt.seconds
     features = features.fillna(0)
     MA_data = MA_MS_timestamp(features, col='sog', epsilon=eps, stats='mean')
     features = pd.concat([features, MA_data], axis=1)
     MA_data = MA_MS_timestamp(features, col='roc', epsilon=eps, stats='sum')
+    features = pd.concat([features, MA_data], axis=1)
+    MA_data = MA_MS_timestamp(features, col='acceleration', epsilon=eps, stats='mean')
     features = pd.concat([features, MA_data], axis=1)
 
     return features
@@ -168,16 +171,19 @@ def get_features(data, win=10):
     features = features[['trajectory', 'time', 'sog', 'cog']]
 
     features['roc'] = diff_cog(features['cog'])
+    features['acceleration'] = features['sog'].diff() / features['time'].diff().dt.seconds
     features = features.fillna(0)
     MA_data = MA_MS_simple(features, col='sog', window=win)
     features = pd.concat([features, MA_data], axis=1)
     MA_data = MA_MS_simple(features, col='roc', window=win, stats='sum')
     features = pd.concat([features, MA_data], axis=1)
+    MA_data = MA_MS_simple(features, col='acceleration', window=win)
+    features = pd.concat([features, MA_data], axis=1)
 
     return features
 
 
-def posprocessing(x, min_points=1, verbose=False, labels2=True):
+def posprocessing(x, min_points=2, verbose=False, labels2=True):
     """
     It applies a pos-processing on the clustering labels.
     It changes the label of the current observation to the previous one
@@ -204,9 +210,9 @@ def posprocessing(x, min_points=1, verbose=False, labels2=True):
         s = list(g)
         if verbose:
             print(f'{c} of {len(lbl)}')
-        if len(s) == min_points:
+        if len(s) <= min_points:
             if len(new_list) == 0:
-                new_list = new_list + [0]
+                new_list = new_list + s
             else:
                 new_list = new_list + [new_list[-1] for i in range(min_points)]
         else:
@@ -214,3 +220,37 @@ def posprocessing(x, min_points=1, verbose=False, labels2=True):
         c = c+1
 
     return new_list
+
+
+def posprocessing_2(data, min_points=1, verbose=False):
+    x = data.copy()
+    lbl = x['labels'].tolist()
+
+    cl = max(set(lbl), key=lbl.count)
+    idx = x[x['labels'] != cl].index
+    x.loc[idx, 'labels'] = -1
+    idx = x[x['labels'] == cl].index
+    x.loc[idx, 'labels'] = 0
+    x['labels'] = list(abs(x['labels']))
+
+    for t in x['trajectory'].unique():
+        if verbose:
+            print(f'{t} of {len(x.trajectory.unique())}')
+        lbl = x[x['trajectory'] == t]['labels'].tolist()
+        new_list = []
+        c = 0
+        for k, g in groupby(lbl):
+            s = list(g)
+            if verbose:
+                print(f'\t{c} of {len(lbl)}, {len(s)}')
+            if len(s) <= min_points:
+                if len(new_list) == 0:
+                    new_list = new_list + s
+                else:
+                    new_list = new_list + [new_list[-1] for i in range(len(s))]
+            else:
+                new_list = new_list + s
+            c = c + len(s)
+        idx = x[x['trajectory'] == t].index
+        x.loc[idx, 'labels'] = new_list
+    return x

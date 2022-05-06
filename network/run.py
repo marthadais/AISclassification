@@ -48,15 +48,14 @@ hyperparameters = {
 	"improvement_threshold": 0.1,
 }
 
-a_test = pd.read_csv("../0-fishing_10_10.csv")
-b_test = pd.read_csv("../1-fishing_10_10.csv")
-c_test = pd.read_csv("../2-fishing_10_600.csv")
-a_train = pd.read_csv("../0-fishing_5_10_10.csv")
-b_train = pd.read_csv("../1-fishing_5_10_10.csv")
-c_train = pd.read_csv("../2-fishing_5_10_600.csv")
-dfa = pd.concat([a_test, a_train], ignore_index=True)
-dfb = pd.concat([b_test, b_train], ignore_index=True)
-dfc = pd.concat([c_test, c_train], ignore_index=True)
+time_train = pd.read_csv("../results/time_final/train_fishing_10_600.csv")
+time_test = pd.read_csv("../results/time_final/test_fishing_10_600.csv")
+df_time = pd.concat([time_test, time_train], ignore_index=True)
+
+obs_train = pd.read_csv("../results/observations_final/train_fishing_10_10.csv")
+obs_test = pd.read_csv("../results/observations_final/test_fishing_10_10.csv")
+df_obs = pd.concat([obs_test, obs_train], ignore_index=True)
+
 
 
 def batchfy_data(df, window=hyperparameters["window"]):
@@ -72,16 +71,16 @@ def batchfy_data(df, window=hyperparameters["window"]):
 
 
 print("\n>>> Features #1")
-x, y = batchfy_data(dfa)
+x, y = batchfy_data(obs_train)
 mynn = NetworkPlayground(**hyperparameters).cuda()
 mynn.fit(x, y)
 
 print("\n>>> Features #2")
-x, y = batchfy_data(dfb)
+x, y = batchfy_data(time_train)
 mynn = NetworkPlayground(**hyperparameters).cuda()
 mynn.fit(x, y)
 
-print("\n>>> Features #3")
-x, y = batchfy_data(dfc)
-mynn = NetworkPlayground(**hyperparameters).cuda()
-mynn.fit(x, y)
+# print("\n>>> Features #3")
+# x, y = batchfy_data(dfc)
+# mynn = NetworkPlayground(**hyperparameters).cuda()
+# mynn.fit(x, y)
