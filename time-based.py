@@ -10,7 +10,7 @@ if not os.path.exists(folder):
     os.makedirs(f'{folder}/data')
 
 seconds = 10*60 # time-based window
-nc = 10 # number of clusters
+nc = 8 # number of clusters
 
 print('Reading Dataset')
 data_file = f'./data/preprocessed/DCAIS_[30]_None-mmsi_region_[46, 51, -130, -122.5]_01-04_to_30-06_trips.csv'
@@ -71,16 +71,4 @@ DBI = davies_bouldin_score(features[['ma_t_acceleration', 'msum_t_roc']], datase
 print(f'DBI data = {DBI}')
 DBI = davies_bouldin_score(features[['ma_t_acceleration', 'msum_t_roc']], dataset['labels_pos'])
 print(f'DBI pos data = {DBI}')
-
-from sklearn.metrics.pairwise import euclidean_distances
-from preprocessing.dunn_index import dunn_index
-import numpy as np
-idx = data_cl.index.to_list()
-np.random.shuffle(idx)
-k = round(len(idx)*0.01)
-idx = idx[0:k]
-dunn = dunn_index(dataset.loc[idx, 'labels'], features.loc[idx, ['ma_t_acceleration', 'msum_t_roc']])
-print(f'DUNN index data = {dunn}')
-sil = silhouette_score(features.loc[idx, ['ma_t_acceleration', 'msum_t_roc']], dataset.loc[idx, 'labels'])
-print(f'DUNN index data = {sil}')
 

@@ -9,7 +9,7 @@ if not os.path.exists(folder):
     os.makedirs(folder)
     os.makedirs(f'{folder}/data')
 win = 10 # fixed number of observations
-nc = 10 # number of clusters
+nc = 8 # number of clusters
 
 print('Reading Dataset')
 data_file = f'./data/preprocessed/DCAIS_[30]_None-mmsi_region_[46, 51, -130, -122.5]_01-04_to_30-06_trips.csv'
@@ -36,13 +36,13 @@ if not os.path.exists(file_name):
     print('Clustering')
     model = KMeans(nc).fit(data_cl)
     labels = model.labels_
-    data_cl.loc['labels'] = labels
-    dataset.loc['labels'] = labels
+    data_cl['labels'] = labels
+    dataset['labels'] = labels
 
     print('Pos-processing')
     labels2 = fts.posprocessing_2(dataset, min_points=5)['labels']
-    data_cl.loc['labels_pos'] = labels2
-    dataset.loc['labels_pos'] = labels2
+    data_cl['labels_pos'] = labels2
+    dataset['labels_pos'] = labels2
 
     # Saving
     # index of a few trajectories to quickly evaluate

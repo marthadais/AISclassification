@@ -48,14 +48,9 @@ hyperparameters = {
 	"improvement_threshold": 0.1,
 }
 
-time_train = pd.read_csv("../results/time_final/train_fishing_10_600.csv")
-time_test = pd.read_csv("../results/time_final/test_fishing_10_600.csv")
-df_time = pd.concat([time_test, time_train], ignore_index=True)
-
-obs_train = pd.read_csv("../results/observations_final/train_fishing_10_10.csv")
-obs_test = pd.read_csv("../results/observations_final/test_fishing_10_10.csv")
-df_obs = pd.concat([obs_test, obs_train], ignore_index=True)
-
+# Martha: I changed it to the path where is the final results of the clustering labelling
+df_time = pd.read_csv("../results/time_final/fishing_8_600.csv")
+df_obs = pd.read_csv("../results/observations_final/fishing_8_10.csv")
 
 
 def batchfy_data(df, window=hyperparameters["window"]):
@@ -70,13 +65,15 @@ def batchfy_data(df, window=hyperparameters["window"]):
 	return x, y
 
 
-print("\n>>> Features #1")
-x, y = batchfy_data(obs_train)
+# print("\n>>> Features #1")
+print("\n>>> Observation-based #1")
+x, y = batchfy_data(df_obs)
 mynn = NetworkPlayground(**hyperparameters).cuda()
 mynn.fit(x, y)
 
-print("\n>>> Features #2")
-x, y = batchfy_data(time_train)
+# print("\n>>> Features #2")
+print("\n>>> Time-based #2")
+x, y = batchfy_data(df_time)
 mynn = NetworkPlayground(**hyperparameters).cuda()
 mynn.fit(x, y)
 
