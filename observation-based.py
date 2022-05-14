@@ -73,22 +73,29 @@ print(f'DBI pos data = {DBI}')
 
 import numpy as np
 import matplotlib.pyplot as plt
-
 colors=np.array(['wheat', 'blue'])
-
-# fishing = data_cl[data_cl['labels_pos'] == 1]
-# sailing = data_cl[data_cl['labels_pos'] == 0]
 fig = plt.figure(figsize=(10, 9))
-# plt.scatter(fishing['ma_acceleration'], fishing['msum_roc'], c=colors[fishing['labels_pos']])
-# plt.scatter(sailing['ma_acceleration'], sailing['msum_roc'], c=colors[sailing['labels_pos']], edgecolors='black')
-plt.scatter(data_cl['ma_acceleration'], data_cl['msum_roc'], c=colors[data_cl['labels_pos']], alpha=0.7)
+plt.scatter(data_cl['ma_acceleration'], data_cl['msum_roc'], c=colors[dataset['labels_pos']], alpha=0.7)
 plt.xlabel('MA of acceleration', fontsize=15)
 plt.ylabel('MS of ROC', fontsize=15)
-plt.xticks(np.arange(-1, 1.5, step=0.2), fontsize=15)
-plt.yticks(np.arange(-600, 1500, step=100), fontsize=15)
+plt.xticks(np.arange(-1.5, 1.7, step=0.2), fontsize=15)
+plt.yticks(np.arange(-800, 1600, step=100), fontsize=15)
 plt.grid(True)
+plt.tight_layout()
 # plt.show()
 plt.savefig(f'./results/images/obs_scatter.png', bbox_inches='tight')
+
+cmap = plt.cm.get_cmap('Accent')
+fig = plt.figure(figsize=(10, 9))
+plt.scatter(data_cl['ma_acceleration'], data_cl['msum_roc'], c=cmap(dataset['labels']), alpha=0.7)
+plt.xlabel('MA of acceleration', fontsize=15)
+plt.ylabel('MS of ROC', fontsize=15)
+plt.xticks(np.arange(-1.5, 1.7, step=0.2), fontsize=15)
+plt.yticks(np.arange(-800, 1600, step=100), fontsize=15)
+plt.grid(True)
+plt.tight_layout()
+# plt.show()
+plt.savefig(f'./results/images/obs_scatter_{nc}.png', bbox_inches='tight')
 
 # fishing = dataset[dataset['labels_pos'] == 1]
 # sailing = dataset[dataset['labels_pos'] == 0]

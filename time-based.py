@@ -75,16 +75,31 @@ print(f'DBI pos data = {DBI}')
 
 import numpy as np
 import matplotlib.pyplot as plt
-fig = plt.figure(figsize=(10, 9))
 colors=np.array(['wheat', 'blue'])
-plt.scatter(data_cl['ma_t_acceleration'], data_cl['msum_t_roc'], c=colors[data_cl['labels_pos']], alpha=0.7)
+fig = plt.figure(figsize=(10, 9))
+plt.scatter(data_cl['ma_t_acceleration'], data_cl['msum_t_roc'], c=colors[dataset['labels_pos']], alpha=0.7)
 plt.xlabel('MA of acceleration', fontsize=15)
 plt.ylabel('MS of ROC', fontsize=15)
-plt.xticks(np.arange(-1, 1.5, step=0.2), fontsize=15)
-plt.yticks(np.arange(-600, 1500, step=100), fontsize=15)
+plt.xticks(np.arange(-1.5, 1.7, step=0.2), fontsize=15)
+plt.yticks(np.arange(-800, 1600, step=100), fontsize=15)
 plt.grid(True)
+plt.tight_layout()
 # plt.show()
 plt.savefig(f'./results/images/time_scatter.png', bbox_inches='tight')
+
+cmap = plt.cm.get_cmap('Accent')
+fig = plt.figure(figsize=(10, 9))
+plt.scatter(data_cl['ma_t_acceleration'], data_cl['msum_t_roc'], c=cmap(dataset['labels']), alpha=0.7)
+plt.xlabel('MA of acceleration', fontsize=15)
+plt.ylabel('MS of ROC', fontsize=15)
+plt.xticks(np.arange(-1.5, 1.7, step=0.2), fontsize=15)
+plt.yticks(np.arange(-800, 1600, step=100), fontsize=15)
+plt.grid(True)
+plt.tight_layout()
+# plt.show()
+plt.savefig(f'./results/images/time_scatter_{nc}.png', bbox_inches='tight')
+
+
 
 plt.scatter(dataset['sog'], dataset['cog'], c=colors[dataset['labels_pos']], alpha=0.7)
 plt.xlabel('SOG', fontsize=15)
