@@ -193,13 +193,13 @@ def images_eval():
 
     for iter in range(2, 21):
         # iter = 8
-        # seconds = iter*60
-        # obs_d = eval_obs.loc[:, str(iter)].apply(lambda x: literal_eval(x)[0])
-        # time_d = eval_time.loc[:, str(seconds)].apply(lambda x: literal_eval(x)[0])
-        # index_d = eval_obs.index
-        obs_d = eval_obs.loc[iter, :].apply(lambda x: literal_eval(x)[0])
-        time_d = eval_time.loc[iter, :].apply(lambda x: literal_eval(x)[0])
-        index_d = eval_obs.columns
+        seconds = iter*60
+        obs_d = eval_obs.loc[:, str(iter)].apply(lambda x: literal_eval(x)[0])
+        time_d = eval_time.loc[:, str(seconds)].apply(lambda x: literal_eval(x)[0])
+        index_d = eval_obs.index
+        # obs_d = eval_obs.loc[iter, :].apply(lambda x: literal_eval(x)[0])
+        # time_d = eval_time.loc[iter, :].apply(lambda x: literal_eval(x)[0])
+        # index_d = eval_obs.columns
 
         fig = plt.figure(figsize=(10, 7))
         plt.plot(index_d, time_d, marker="p", linestyle="-", linewidth=2,
@@ -209,8 +209,8 @@ def images_eval():
         plt.plot(index_d, np.repeat(0.5, len(obs_d)), color='black', linestyle="-", linewidth=2, label='threshold')
         plt.title(f'K-means - {iter} obs')
         plt.ylabel('DBI', fontsize=15)
-        plt.xlabel('Number of messages and minutes', fontsize=15)
-        # plt.xlabel('Number of clusters', fontsize=15)
+        # plt.xlabel('Number of messages and minutes', fontsize=15)
+        plt.xlabel('Number of clusters', fontsize=15)
         plt.legend(fontsize=20)
         plt.xticks(index_d, index_d, fontsize=15)
         plt.yticks(np.arange(0.38, 0.55, step=0.02), fontsize=15)

@@ -10,7 +10,7 @@ if not os.path.exists(folder):
     os.makedirs(f'{folder}/data')
 
 seconds = 10*60 # time-based window
-nc = 10 # number of clusters
+nc = 8 # number of clusters
 
 print('Reading Dataset')
 data_file = f'./data/preprocessed/DCAIS_[30]_None-mmsi_region_[46, 51, -130, -122.5]_01-04_to_30-06_trips.csv'
@@ -72,15 +72,37 @@ print(f'DBI data = {DBI}')
 DBI = davies_bouldin_score(features[['ma_t_acceleration', 'msum_t_roc']], dataset['labels_pos'])
 print(f'DBI pos data = {DBI}')
 
-from sklearn.metrics.pairwise import euclidean_distances
-from preprocessing.dunn_index import dunn_index
+
 import numpy as np
-idx = data_cl.index.to_list()
-np.random.shuffle(idx)
-k = round(len(idx)*0.01)
-idx = idx[0:k]
-dunn = dunn_index(dataset.loc[idx, 'labels'], features.loc[idx, ['ma_t_acceleration', 'msum_t_roc']])
-print(f'DUNN index data = {dunn}')
-sil = silhouette_score(features.loc[idx, ['ma_t_acceleration', 'msum_t_roc']], dataset.loc[idx, 'labels'])
-print(f'DUNN index data = {sil}')
+import matplotlib.pyplot as plt
+colors=np.array(['wheat', 'blue'])
+fig = plt.figure(figsize=(10, 9))
+plt.scatter(data_cl['ma_t_acceleration'], data_cl['msum_t_roc'], c=colors[dataset['labels_pos']], alpha=0.7)
+plt.xlabel('MA of acceleration', fontsize=15)
+plt.ylabel('MS of ROC', fontsize=15)
+plt.xticks(np.arange(-1.5, 1.7, step=0.2), fontsize=15)
+plt.yticks(np.arange(-800, 1600, step=100), fontsize=15)
+plt.grid(True)
+plt.tight_layout()
+# plt.show()
+plt.savefig(f'./results/images/time_scatter.png', bbox_inches='tight')
+
+cmap = plt.cm.get_cmap('Accent')
+fig = plt.figure(figsize=(10, 9))
+plt.scatter(data_cl['ma_t_acceleration'], data_cl['msum_t_roc'], c=cmap(dataset['labels']), alpha=0.7)
+plt.xlabel('MA of acceleration', fontsize=15)
+plt.ylabel('MS of ROC', fontsize=15)
+plt.xticks(np.arange(-1.5, 1.7, step=0.2), fontsize=15)
+plt.yticks(np.arange(-800, 1600, step=100), fontsize=15)
+plt.grid(True)
+plt.tight_layout()
+# plt.show()
+plt.savefig(f'./results/images/time_scatter_{nc}.png', bbox_inches='tight')
+
+
+
+plt.scatter(dataset['sog'], dataset['cog'], c=colors[dataset['labels_pos']], alpha=0.7)
+plt.xlabel('SOG', fontsize=15)
+plt.ylabel('COG', fontsize=15)
+plt.show()
 

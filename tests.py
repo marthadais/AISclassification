@@ -6,6 +6,10 @@ from itertools import groupby
 from collections import Counter
 
 
+#websites:
+#https://datalastic.com/blog/ais-navigational-status/
+#https://coast.noaa.gov/data/marinecadastre/ais/VesselTypeCodes2018.pdf
+
 def posprocessing(x, min_points=1, verbose=False, labels2=True):
     """
     It applies a pos-processing on the clustering labels.
