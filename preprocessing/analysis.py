@@ -183,6 +183,7 @@ plt.show()
 # plt.savefig(f'{folder}/lines-compression-{item}.png', bbox_inches='tight')
 plt.close()
 
+
 def images_eval():
     import matplotlib.pyplot as plt
     from ast import literal_eval

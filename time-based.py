@@ -22,7 +22,7 @@ dataset.loc[dataset[dataset['status'] == 7].index, 'control'] = 1
 dataset.loc[dataset[dataset['status'] != 7].index, 'control'] = 0
 
 print('Getting Features')
-features_path = f'{folder}/data/features_window_time_{seconds}_acc_m.csv'
+features_path = f'{folder}/data/features_window_time_{seconds}.csv'
 if not os.path.exists(features_path):
     # features_all = fts.get_all_features(dataset, n_dirs=n_dirs, win=window, eps=seconds)
     features = fts.get_features_time(dataset, eps=seconds)
