@@ -1,0 +1,4 @@
+,mmsi,time,lon,lat,imo,vessel_name,dim_bow,dim_stern,dim_port,dim_star,ship_type,ship_type_txt
+0,316004846,1493127901,-62.0819033333,46.38334,,CCGC CAP SPRY,9,6,3,1,51,Search and rescue vessels
+1,316004846,1493127920,-62.0840133333,46.38223,,CCGC CAP SPRY,9,6,3,1,51,Search and rescue vessels
+2,316004846,1509298410,-62.084945,46.3813416667,,CCGC CAP SPRY,9,6,3,1,51,Search and rescue vessels

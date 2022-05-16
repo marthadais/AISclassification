@@ -268,7 +268,6 @@ class NetworkPlayground(torch.nn.Module):
 	def __worker_init(worker_id):
 		"""
 			Enforce reproducibility for PyTorch's Dataloader.
-			- Arguments are self-explanatory.
 		"""
 		worker_seed = torch.initial_seed() % 2 ** 32
 		np.random.seed(worker_seed)
@@ -279,7 +278,6 @@ class NetworkPlayground(torch.nn.Module):
 	def __reseeding(random_seed):
 		"""
 			Avoid losing determinism on Cuda 10.2.
-			- Arguments are self-explanatory.
 		"""
 		torch.backends.cudnn.deterministic = True
 		torch.use_deterministic_algorithms(True)
@@ -303,7 +301,7 @@ class NetworkPlayground(torch.nn.Module):
 
 		# Training Variables
 		self.epoch, unimprovement, keep_training = 0, 0, True
-		checkpoint_path = os.path.join("./.NN-%d.pt" % self.random_seed)
+		checkpoint_path = os.path.join("./.NN-%d-%s.pt" % self.random_seed, self.sulfix)
 
 		# Sliced Test Data
 		dataloader, (x_dev, y_dev), (x_out, y_out) = self.data_preparation(x, y, generator=generator)
@@ -349,7 +347,7 @@ class NetworkPlayground(torch.nn.Module):
 							"model_state_dict": self.state_dict(),
 							"optimizer_state_dict": self.optimizer.state_dict(),
 						}, checkpoint_path)  # always overwrites the previous one
-						if self.verbose:
+						if self.verbose and unimprovement == 0:
 							print("\n", classification_report(y_out.cpu().numpy(), self.predict(x_out), labels=[0, 1], zero_division=1.))
 					else:
 						unimprovement += 1
@@ -368,3 +366,5 @@ class NetworkPlayground(torch.nn.Module):
 		self.min_loss = checkpoint["min_loss"]
 		self.load_state_dict(checkpoint["model_state_dict"])
 		self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+
+		return self
