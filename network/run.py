@@ -87,6 +87,7 @@ search_space = {
 	"hidden_size": [32, 64, 128, 256, 512, 1024],
 }  # This is a comprehensive, but reduced, set of possibilities
 grid_search = [dict(zip(search_space, x)) for x in itertools.product(*search_space.values())]
+print("The search space size is of %d possibilities!" % len(grid_search))
 
 # Benchmarking results regarding the temporal approach
 df, suffix = pd.read_csv("../results/time_final/fishing_8_600.csv"), "-T"
