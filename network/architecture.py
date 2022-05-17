@@ -83,6 +83,7 @@ class NetworkPlayground(torch.nn.Module):
 		self.Sigmoid = torch.nn.Sigmoid()  # Required when using BCE
 		self.Linear1 = torch.nn.Linear(in_features=window, out_features=1)
 		self.Linear2 = torch.nn.Linear(in_features=hidden_size, out_features=1)
+		self.Linear3 = torch.nn.Linear(in_features=window, out_features=window)
 
 		# Training Defines
 		self.criterion = self.BCE
@@ -102,8 +103,9 @@ class NetworkPlayground(torch.nn.Module):
 			x = x.view(-1, self.window, 2, self.hidden_size)
 			x = x.sum(axis=2)  # merging temporal branches
 		x = self.Linear2(x)  # mapping variables into classes
-		x = self.Linear1(x.permute(0, 2, 1))  # reducing the sequence
-		return self.Sigmoid(torch.squeeze(x))  # BCE requires a Sigmoid
+		x = self.Linear3(x.permute(0, 2, 1))  # expanding the sequence length
+		x = self.Linear1(torch.relu(x))  # reducing the sequence length
+		return self.Sigmoid(torch.squeeze(x))  # compression of the tensor shape
 
 	def __fit(self, x, y):
 		"""
