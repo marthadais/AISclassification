@@ -81,9 +81,9 @@ class NetworkPlayground(torch.nn.Module):
 				num_layers=recurrent_layers, batch_first=True,
 		)
 		self.Sigmoid = torch.nn.Sigmoid()  # Required when using BCE
-		self.Linear1 = torch.nn.Linear(in_features=window, out_features=1)
+		self.Linear1 = torch.nn.Linear(in_features=hidden_size, out_features=1)
 		self.Linear2 = torch.nn.Linear(in_features=hidden_size, out_features=1)
-		self.Linear3 = torch.nn.Linear(in_features=window, out_features=window)
+		self.Linear3 = torch.nn.Linear(in_features=window, out_features=hidden_size)
 
 		# Training Defines
 		self.criterion = self.BCE
