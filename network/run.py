@@ -15,7 +15,7 @@ import pandas as pd
 import pickle as pkl
 
 from tqdm.contrib.concurrent import process_map
-from network.architecture import NetworkPlayground
+from architecture import NetworkPlayground
 
 random_seed = 6723  # Same used inside the NN
 torch.backends.cudnn.deterministic = True
