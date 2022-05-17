@@ -80,22 +80,22 @@ def test_pipelines(hyperparams):
 search_space = {
 	"verbose": [False],  # enforce this before benchmarking
 	"batch_size": [8192],  # varies with the GPU Memory
-	"window": list(range(2, 10)),
+	"window": list(range(3, 10)),
 	"recurrent_layers": [1, 2, 3],
 	"bidirectional": [True, False],
+	"hidden_size": [128, 256, 512, 1024],
 	"recurrent_unit": ["LSTM",  "RNN", "GRU"],
-	"hidden_size": [32, 64, 128, 256, 512, 1024],
 }  # This is a comprehensive, but reduced, set of possibilities
 grid_search = [dict(zip(search_space, x)) for x in itertools.product(*search_space.values())]
 print("The search space size is of %d possibilities!" % len(grid_search))
 
 # Benchmarking results regarding the temporal approach
 df, suffix = pd.read_csv("../results/time_final/fishing_8_600.csv"), "-T"
-t_res = process_map(test_pipelines, grid_search, max_workers=3, chunksize=250, disable=True)
+t_res = process_map(test_pipelines, grid_search, max_workers=2, chunksize=250, disable=True)
 
 # Benchmarking results regarding the observational approach
 df, suffix = pd.read_csv("../results/observations_final/fishing_8_10.csv"), "-O"
-o_res = process_map(test_pipelines, grid_search, max_workers=3, chunksize=250, disable=True)
+o_res = process_map(test_pipelines, grid_search, max_workers=2, chunksize=250, disable=True)
 
 # Saving results for later assessment
 pkl.dump([t_res, o_res], open(".grid-search-to.pkl", "wb"), pkl.HIGHEST_PROTOCAL)
