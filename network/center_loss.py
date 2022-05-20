@@ -7,8 +7,6 @@
 # This script requires setting "CUBLAS_WORKSPACE_CONFIG=:16:8" as an environment variable.
 
 import torch
-import numpy as np
-from torch import device
 
 
 class CenterLoss(torch.nn.Module):
@@ -17,15 +15,15 @@ class CenterLoss(torch.nn.Module):
         [*] Wen et al., "A Discriminative Feature Learning Approach for Deep Face Recognition", ECCV (2016)
     """
 
-    def __init__(self, classes=2, variables=4, reduction="mean-log"):
+    def __init__(self, classes=2, variables=4, reduction="mean"):
         """
         Initializes the trainable parameters of the loss function
         :param classes: integer (default: 2)
             The number of target classes in the classification task.
         :param variables: integer (default: 4)
             The number of variables within the multivariate dataset.
-        :param reduction: string (default: mean-log)
-            The way o reduce the list of losses when in a three-dimensional task.
+        :param reduction: string (default: mean)
+            The way to reduce the list of losses when in a three-dimensional task.
         """
         super(CenterLoss, self).__init__()
 
@@ -36,19 +34,23 @@ class CenterLoss(torch.nn.Module):
 
     def forward(self, x, y):
         """
-        Args:
-            x: feature matrix with shape (batch_size, [time,] feat_dim).
-            y: ground truth labels with shape (batch_size).
+        PyTorch training routine.
+        :param x: array-like of shape (batch, window, variables)
+            Observations from the past window-sized time-steps.
+        :param y: array-like of shape (batch, label)
+            Labels for the classification task.
+        :return: array-like of shape (1,)
+            The criterion loss.
         """
         if len(x.shape) < 2 or len(x.shape) > 3:
-            raise ValueError("Not implemented.")
+            raise ValueError("Input data must be of shape (batch, [window,] variables)")
         elif len(x.shape) == 2:
             torch.unsqueeze(x, 1)
 
         losses = []
         for t in range(0, x.shape[1]):
-            x_input = torch.squeeze(x[:, t, :])
-            batch_size = x_input.shape[0]  # first dimension of tensor
+            x_input = x[:, t, :]
+            batch_size = x_input.shape[0]
             dist_mtx_1 = torch.pow(x_input, 2).sum(dim=1, keepdim=True)
             dist_mtx_1 = dist_mtx_1.expand(batch_size, self.classes)
             dist_mtx_2 = torch.pow(self.centers, 2).sum(dim=1, keepdim=True)
@@ -58,7 +60,7 @@ class CenterLoss(torch.nn.Module):
             y = y.unsqueeze(1) if len(y.shape) == 1 else y
             classes = torch.arange(self.classes).to(device="cuda", dtype=torch.float64)
             mask = y.expand(batch_size, self.classes).eq(classes.expand(batch_size, self.classes))
-            losses.append((_dist_mtx_ * mask.to(torch.float64)).clamp(min=1e-12, max=1e+12).sum() / batch_size)
+            losses.append((_dist_mtx_ * mask.to(torch.float64)).clamp(min=1e-9, max=1e+9).sum() / batch_size)
 
         if self.reduction == "sum-log":
             return torch.sum(torch.log1p(torch.stack(losses)))
