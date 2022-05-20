@@ -8,12 +8,19 @@
 
 import os
 import torch
+import shutil
 import random
+import pprint
+import torcheck
+import datetime
 import numpy as np
 
 from tqdm import tqdm
+from datetime import datetime
 from torch.optim import AdamW
+from center_loss import CenterLoss
 from torch.nn import RNN, GRU, LSTM  # used with eval(<class-name>)
+from prettytable import PrettyTable
 from sklearn.metrics import f1_score
 from multiprocessing import cpu_count
 from torch.utils.data import DataLoader
@@ -27,6 +34,7 @@ class NetworkPlayground(torch.nn.Module):
 	"""
 	A Neural Network Playground for baselines computation.
 	"""
+
 	def __init__(self, window, variables, tuning_samples, test_samples, recurrent_unit, hidden_size, recurrent_layers, bidirectional, bias, **kwargs):
 		"""
 		Initializes the layers of the network with the user-input arguments.
@@ -50,6 +58,8 @@ class NetworkPlayground(torch.nn.Module):
 			Sets bias vectors permanently to zeros if set to False.
 		"""
 		super(NetworkPlayground, self).__init__()
+		torch.set_default_dtype(torch.float64)
+		torch.set_printoptions(sci_mode=False)
 
 		# Attributes
 		self.epoch = 0
@@ -72,7 +82,10 @@ class NetworkPlayground(torch.nn.Module):
 		for key, value in kwargs.items():
 			# Mapping all kwargs to attributes
 			setattr(self, key, value)
-		self.hash = hash(frozenset(kwargs.items()))
+
+		# Assuring the unicity of the experiments
+		self.hash = round(datetime.now().timestamp())
+		self.hash += random.randint(0, 999)
 
 		# Neural Network Layers
 		self.RNN = eval(recurrent_unit)(
@@ -86,8 +99,20 @@ class NetworkPlayground(torch.nn.Module):
 
 		# Training Defines
 		self.criterion = self.BCE
-		self.optimizer = AdamW(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay, amsgrad=self.use_amsgrad)
+		self.center_loss = CenterLoss(classes=2, variables=variables).cuda()
+		shared_parameters = list(self.parameters()) + list(self.criterion.parameters())
+		self.optimizer = AdamW(shared_parameters, lr=self.learning_rate, weight_decay=self.weight_decay, amsgrad=self.use_amsgrad)
 		self.scheduler = ReduceLROnPlateau(self.optimizer, factor=self.scheduler_factor, patience=self.scheduler_patience, threshold=self.improvement_threshold)
+
+		# Further Debugging with Torcheck
+		torcheck.register(self.optimizer)
+		torcheck.add_module(
+				module=self,
+				changing=True,
+				check_nan=True,
+				check_inf=True,
+				module_name="NetworkPlayground",
+		)
 
 	def forward(self, x):
 		"""
@@ -105,13 +130,17 @@ class NetworkPlayground(torch.nn.Module):
 		x = self.Linear1(x.permute(0, 2, 1))  # reducing the sequence
 		return self.Sigmoid(torch.squeeze(x))  # BCE requires a Sigmoid
 
-	def __fit(self, x, y):
+	def __fit(self, x, y, alpha=1.75, center_lr=.25):
 		"""
 		PyTorch training routine.
 		:param x: array-like of shape (samples, window, variables)
 			Observations from the past window-sized time-steps.
 		:param y: array-like of shape (samples, horizon, variables)
 			Predictions for the next horizon-sized time-steps.
+		:param alpha: integer
+			Weighting parameter for the center loss.
+		:param center_lr: float
+			Learning rate for the center loss.
 		:return: array-like of shape (1,)
 			The criterion loss.
 		"""
@@ -121,14 +150,18 @@ class NetworkPlayground(torch.nn.Module):
 		# Forward propagation
 		y_pred = self.forward(x)
 		# Computing the resulting loss
-		loss = self.criterion(y_pred, y)
+		entropy_loss = self.criterion(y_pred, y)
+		center_loss = (self.center_loss(x, y) * alpha)
+		(entropy_loss + center_loss).backward()  # joint backprop
 
-		loss.backward()
+		for param in self.center_loss.parameters():
+			# Weighting the loss function parameters based on alpha
+			param.grad.data *= (center_lr / (alpha * self.learning_rate))
+
 		# Gradient value clipping
 		torch.nn.utils.clip_grad_norm_(self.parameters(), self.max_gradnorm)
-		self.optimizer.step()  # updating parameters
-
-		return loss.detach().cpu().numpy()
+		self.optimizer.step()  # updating parameters for next call
+		return entropy_loss.detach().cpu().numpy()
 
 	def predict(self, x):
 		"""
@@ -199,7 +232,8 @@ class NetworkPlayground(torch.nn.Module):
 				yd.append(torch.stack(yd_list))
 				xf.append(torch.stack(x_list))
 				yf.append(torch.stack(y_list))
-			except: pass  # Iterate through the next trajectory
+			except:
+				pass  # Iterate through the next trajectory
 			# Checking for data leaking by intersecting indices (no leaking means an empty set)
 			assert len(set(slice_ids[0]) & (set(slice_ids[1]) | set(slice_ids[2]))) == 0
 
@@ -218,7 +252,7 @@ class NetworkPlayground(torch.nn.Module):
 			x = (x - x_mean) / x_std  # training data
 			xd = (xd - x_mean) / x_std  # tuning data
 			xt = (xt - x_mean) / x_std  # test data
-			# Min-Max Normalization.ma
+			# Min-Max Normalization
 			x_max = x.amax(dim=0, keepdim=True)
 			x_min = x.amin(dim=0, keepdim=True)
 			x_max[x_max == 0] = 1  # avoid zero division
@@ -227,18 +261,43 @@ class NetworkPlayground(torch.nn.Module):
 			xt = (xt - x_min) / (x_max - x_min)  # test data
 
 		# The batches are CPU-pinned for quicker GPU transfer
-		dataloader = DataLoader(dataset=TensorDataset(*[x.view(-1, *x.shape[-2:]), y.view(-1,)]),
-								generator=generator, worker_init_fn=NetworkPlayground.__worker_init,
-								num_workers=2,#max(0, min(num_workers, cpu_count())),
-								batch_size=self.batch_size, shuffle=self.shuffle,
-								drop_last=drop_last, pin_memory=True)
+		dataloader = DataLoader(dataset=TensorDataset(*[x.view(-1, *x.shape[-2:]), y.view(-1, )]),
+		                        generator=generator, worker_init_fn=NetworkPlayground.__worker_init,
+		                        num_workers= max(0, min(num_workers, cpu_count())),
+		                        batch_size=self.batch_size, shuffle=self.shuffle,
+		                        drop_last=drop_last, pin_memory=True)
 
 		# Enforcing the shape of the input tuning and test data on reserved RAM address
-		xd, yd = xd.view(-1, *xd.shape[-2:]).pin_memory(), yd.view(-1,).pin_memory()
-		xt, yt = xt.view(-1, *xt.shape[-2:]).pin_memory(), yt.view(-1,).pin_memory()
+		xd, yd = xd.view(-1, *xd.shape[-2:]).pin_memory(), yd.view(-1, ).pin_memory()
+		xt, yt = xt.view(-1, *xt.shape[-2:]).pin_memory(), yt.view(-1, ).pin_memory()
 
 		# Train, tuning, and test data folds
 		return dataloader, (xd, yd), (xt, yt)
+
+	def __print_details(self):
+		# Yielding a preview of the network architecture
+		print("[I] Network Architecture:\n\n", self, end="\n\n")
+		# Creating a table to store details about the layers
+		table = PrettyTable(["Modules", "Shape", "Parameters"])
+		table.align["Parameters"] = "c"
+		table.align["Modules"] = "r"
+		table.align["Shape"] = "c"
+		# Sorting by the number of parameters
+		table.sortby = "Parameters"
+		total_params = 0
+		# Adding details about layers' shape and parameters
+		for name, parameter in self.named_parameters():
+			if not parameter.requires_grad: continue
+			shape = str(list(parameter.shape))
+			shape = shape.replace(", ", " x ")
+			shape = shape.replace("]", "")
+			shape = shape.replace("[", "")
+			n_params = parameter.numel()
+			table.add_row([name, shape, n_params])
+			total_params += n_params
+		table.add_row(["TOTAL", "", total_params])
+		# Printing the resulting table before proceeding with training
+		print(f"[I] Training Details:\n\n{table}\n\n[I] Network Training:", end="")
 
 	@staticmethod
 	def __worker_init(worker_id):
@@ -270,37 +329,44 @@ class NetworkPlayground(torch.nn.Module):
 			:param y: tensor of shape (n_samples, n_timestamps, n_features)
 				A tensor of integer-valued monotonically-increasing labels.
 		"""
+		# >>> Test nothing
+		torcheck.verbose_off()  # Removes extra information
+		torcheck.disable()  # Disable the debugging module
+		# >>> Test everything
+		# torcheck.verbose_on()  # Includes the tensor info
+		# torcheck.enable()  # Activate the checking module
+
 		# Forcing Determinism
 		generator = torch.Generator()
 		generator.manual_seed(self.random_seed)
 		NetworkPlayground.__reseeding(self.random_seed)
 
 		# Training Variables
+		os.makedirs("./training-checkpoints", exist_ok=True)
 		self.epoch, unimprovement, keep_training = 0, 0, True
-		checkpoint_path = os.path.join("./.NN-%d-%s.pt" % (self.random_seed, self.suffix))
+		checkpoint_path = os.path.join("./.NN-%d-%s-%s.pt" % (self.random_seed, self.hash, self.suffix))
 
-		if not os.path.isfile(checkpoint_path):
-			# Sliced Test Data
-			dataloader, (x_dev, y_dev), (x_out, y_out) = self.data_preparation(x, y, generator=generator)
-			# Beware of this might overflow the GPU memory depending on the size of the dataset
-			x_dev, y_dev, x_out, y_out = x_dev.cuda(), y_dev.cpu(), x_out.cuda(), y_out.cpu()
+		# Sliced Test Data
+		dataloader, (x_dev, y_dev), (x_out, y_out) = self.data_preparation(x, y, generator=generator)
+		# Beware of this might overflow the GPU memory depending on the size of the dataset
+		x_dev, y_dev, x_out, y_out = x_dev.cuda(), y_dev.cpu(), x_out.cuda(), y_out.cpu()
 
-			while keep_training:
-				try:  # Hit CTRL+C to stop training
-					f_losses, d_losses, lr_list = [], [], []
-					bar_format = "{desc}{percentage:3.0f}%|{bar:10}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}{postfix}]{bar:-10b}"
-					with tqdm(dataloader, total=len(dataloader), unit="batch", bar_format=bar_format, disable=(not self.verbose), ncols=200) as mini_batches:
-						mini_batches.set_description("#%04d" % self.epoch)
+		while keep_training:
+			try:  # Hit CTRL+C to stop training
+				f_losses, d_losses, lr_list = [], [], []
+				bar_format = "{desc}{percentage:3.0f}%|{bar:10}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}{postfix}]{bar:-10b}"
+				with tqdm(dataloader, total=len(dataloader), unit="batch", bar_format=bar_format, disable=(not self.verbose), ncols=200) as mini_batches:
+					mini_batches.set_description("#%04d" % self.epoch)
 
-						for x_fit, y_fit in mini_batches:
-							x_fit, y_fit = x_fit.cuda(), y_fit.cuda()
-							_ = self.__fit(x_fit, y_fit)  # Training the Network
-							y_fit, yx_fit = y_fit.cpu(), self.predict(x_fit)
-							y_dev, yx_dev = y_dev.cpu(), self.predict(x_dev)
-							y_out, yx_out = y_out.cpu(), self.predict(x_out)
-							d_losses.append(self.BCE(yx_dev, y_dev))
+					for x_fit, y_fit in mini_batches:
+						x_fit, y_fit = x_fit.cuda(), y_fit.cuda()
+						_ = self.__fit(x_fit, y_fit)  # Training the Network
+						y_fit, yx_fit = y_fit.cpu(), self.predict(x_fit)
+						y_dev, yx_dev = y_dev.cpu(), self.predict(x_dev)
+						y_out, yx_out = y_out.cpu(), self.predict(x_out)
+						d_losses.append(self.BCE(yx_dev, y_dev))
 
-							mini_batches.set_postfix(
+						mini_batches.set_postfix(
 								stop="%03d" % unimprovement,
 								rate="%08.7f" % self.optimizer.param_groups[0]["lr"],
 								a_acc="%05.3f" % balanced_accuracy_score(y_fit, yx_fit),
@@ -309,42 +375,45 @@ class NetworkPlayground(torch.nn.Module):
 								b_fsc="%05.3f" % f1_score(y_dev, yx_dev, average="weighted", zero_division=1.),
 								c_acc="%05.3f" % balanced_accuracy_score(y_out, yx_out),
 								c_fsc="%05.3f" % f1_score(y_out, yx_out, average="weighted", zero_division=1.),
-							)
+						)
 
-						current_loss = np.array(d_losses).mean(axis=0)
-						# LR scheduling using the development loss
-						self.scheduler.step(current_loss)
+					current_loss = np.array(d_losses).mean(axis=0)
+					# LR scheduling using the development loss
+					self.scheduler.step(current_loss)
 
-						if min(self.min_loss, current_loss) == current_loss:
-							unimprovement = unimprovement + 1 if (self.min_loss - current_loss) < self.improvement_threshold else 0
-							self.min_loss = current_loss  # the minimum training loss is the current one
-							torch.save({  # saving a snapshot of the current model
-								"epoch": self.epoch,
-								"min_loss": self.min_loss,
-								"model_state_dict": self.state_dict(),
-								"optimizer_state_dict": self.optimizer.state_dict(),
-							}, checkpoint_path)  # always overwrites the previous one
-							if self.verbose and unimprovement == 0:
-								print("\n", classification_report(y_out.cpu().numpy(), self.predict(x_out), labels=[0, 1], target_names=["Sailing (0)", "Fishing (1)"], zero_division=1.))
-						else:
-							unimprovement += 1
+					if min(self.min_loss, current_loss) == current_loss:
+						unimprovement = unimprovement + 1 if (self.min_loss - current_loss) < self.improvement_threshold else 0
+						self.min_loss = current_loss  # the minimum training loss is the current one
+						torch.save({  # saving a snapshot of the current model
+							"epoch": self.epoch,
+							"details": self.details,
+							"min_loss": self.min_loss,
+							"model_state_dict": self.state_dict(),
+							"optimizer_state_dict": self.optimizer.state_dict(),
+						}, checkpoint_path)  # always overwrites the previous one
+						if self.verbose and unimprovement == 0:
+							print("\n", classification_report(y_out.cpu().numpy(), self.predict(x_out), labels=[0, 1], target_names=["Sailing (0)", "Fishing (1)"], zero_division=1.))
+					else:
+						unimprovement += 1
 
-						# Stop training when the patience runs over after not seeing improvements
-						keep_training = False if unimprovement >= self.learning_patience else True
-						self.epoch += 1  # starting a new epoch
-				except KeyboardInterrupt:
-					keep_training = False
+					# Stop training when the patience runs over after not seeing improvements
+					keep_training = False if unimprovement >= self.learning_patience else True
+					self.epoch += 1  # starting a new epoch
+			except KeyboardInterrupt:
+				keep_training = False
 
 		# Loading the best epoch from the disk
 		checkpoint = torch.load(checkpoint_path)
+		pp = pprint.PrettyPrinter(indent=4)
 
 		# Restoring previous states
 		self.epoch = checkpoint["epoch"]
+		self.details = checkpoint["details"]
 		self.min_loss = checkpoint["min_loss"]
 		self.load_state_dict(checkpoint["model_state_dict"])
 		self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
-		# Test again with the last seen weights
+		pp.pprint(self.details); print(""); self.__print_details()  # report the hyperparameters, number of internal parameters, and test again with the last seen weights
 		print("\n", classification_report(y_out.cpu().numpy(), self.predict(x_out), labels=[0, 1], target_names=["Sailing (0)", "Fishing (1)"], zero_division=1.))
-
+		shutil.move(checkpoint_path, "./training-checkpoints/" + checkpoint_path[3:])  # move the checkpoint to a permanent folder
 		return self.min_loss

@@ -12,10 +12,10 @@ import random
 import itertools
 import numpy as np
 import pandas as pd
-import pickle as pkl
 
 from tqdm.contrib.concurrent import process_map
 from architecture import NetworkPlayground
+from copy import deepcopy
 
 random_seed = 6723  # Same used inside the NN
 torch.backends.cudnn.deterministic = True
@@ -52,17 +52,23 @@ hyperparameters = {
 	"improvement_threshold": 0.1,
 }
 
-def test_pipelines(hyperparams):
 
-	hyperparameters["suffix"] = str(hash(hyperparams.values())) + suffix
-	hyperparameters.update(hyperparams)
+def test_pipelines(hyperparams):
+	hyperparameters.update(hyperparams)  # for the current iteration
+	hyperparameters["details"] = deepcopy(hyperparameters)  # for identification
+
+	if hyperparameters["suffix"] == "T":  # time-based pipeline
+		df = pd.read_csv("../results/time_final/fishing_8_600.csv")
+	elif hyperparameters["suffix"] == "O":  # observation-based pipeline
+		df = pd.read_csv("../results/observations_final/fishing_8_10.csv")
+	else:
+		raise Exception("Suffix must be either 'T' or 'O'")
 
 	def batchfy_data(df, window=hyperparameters["window"]):
 		"""
 			Prepares the dataset for the neural network training.
 			The testing portion will be separated by the trainer's class.
 			To change the amount of test data, update "test_samples" in the dict above.
-
 		"""
 		x, y = [], []
 		for mmsi in set(df.mmsi):
@@ -74,28 +80,23 @@ def test_pipelines(hyperparams):
 				y.append(torch.from_numpy(df_mmsi.labels_pos.to_numpy()))
 		return x, y
 
-	# training the network with the input dataset
-	return [hyperparameters, (NetworkPlayground(**hyperparameters).cuda()).fit(*batchfy_data(df))]
+	return (NetworkPlayground(**hyperparameters).cuda()).fit(*batchfy_data(df))
 
-search_space = {
-	"verbose": [False],  # enforce this before benchmarking
-	"batch_size": [8192],  # varies with the GPU Memory
-	"window": list(range(3, 10)),
-	"recurrent_layers": [1, 2, 3],
-	"bidirectional": [True, False],
-	"hidden_size": [128, 256, 512, 1024],
-	"recurrent_unit": ["LSTM",  "RNN", "GRU"],
+
+search_space = {  # essentially covering good possibilities
+	"verbose": [False],  # recommended during debugging
+	"batch_size": [4096],  # varies with the GPU Memory
+	"suffix": ["T", "O"],  # different datasets (do not change)
+	"window": [8, 9, 10, 11],  # according to the unsupervised analysis
+	"recurrent_layers": [1, 2, 3],  # number of stacked recurrent layers
+	"bidirectional": [True, False],  # temporal-dependency direction
+	"hidden_size": [32, 64, 128, 256],  # size of the hidden layers
+	"recurrent_unit": ["LSTM", "RNN", "GRU"],  # different RNNs
 }  # This is a comprehensive, but reduced, set of possibilities
 grid_search = [dict(zip(search_space, x)) for x in itertools.product(*search_space.values())]
-print("The search space size is of %d possibilities!" % len(grid_search))
+np.random.shuffle(grid_search)  # Randomly shuffle for increased variability
 
 # Benchmarking results regarding the temporal approach
-df, suffix = pd.read_csv("../results/time_final/fishing_8_600.csv"), "-T"
-t_res = process_map(test_pipelines, grid_search, max_workers=2, chunksize=250, disable=True)
-
-# Benchmarking results regarding the observational approach
-df, suffix = pd.read_csv("../results/observations_final/fishing_8_10.csv"), "-O"
-o_res = process_map(test_pipelines, grid_search, max_workers=2, chunksize=250, disable=True)
-
-# Saving results for later assessment
-pkl.dump([t_res, o_res], open(".grid-search-to.pkl", "wb"), pkl.HIGHEST_PROTOCAL)
+# _ = process_map(test_pipelines, grid_search, max_workers=2, chunksize=250, disable=False)
+print("The search space size is of %d possibilities!" % len(grid_search))
+_ = [test_pipelines(params) for params in grid_search]
