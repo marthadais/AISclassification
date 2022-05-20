@@ -35,7 +35,7 @@ class NetworkPlayground(torch.nn.Module):
 	A Neural Network Playground for baselines computation.
 	"""
 
-	def __init__(self, window, variables, tuning_samples, test_samples, recurrent_unit, hidden_size, recurrent_layers, bidirectional, bias, **kwargs):
+	def __init__(self, window, variables, tuning_samples, test_samples, recurrent_unit, hidden_size, recurrent_layers, bidirectional, dropout, bias, **kwargs):
 		"""
 		Initializes the layers of the network with the user-input arguments.
 		:param window: integer
@@ -54,6 +54,8 @@ class NetworkPlayground(torch.nn.Module):
 			The number of stacked recurrent unities.
 		:param bidirectional: boolean
 			Sets the recurrent unit as bidirectional if set to True.
+		:param dropout: float
+			Dropout probability.
 		:param bias: boolean
 			Sets bias vectors permanently to zeros if set to False.
 		"""
@@ -66,6 +68,7 @@ class NetworkPlayground(torch.nn.Module):
 		self.bias = bias
 		self.window = window
 		self.min_loss = np.inf
+		self.dropout = dropout
 		self.variables = variables
 		self.hidden_size = hidden_size
 		self.test_samples = test_samples
@@ -76,8 +79,8 @@ class NetworkPlayground(torch.nn.Module):
 
 		# Evaluation Metrics
 		self.BCE = torch.nn.BCELoss()
-		self.HE = torch.nn.HingeEmbeddingLoss()
-		self.KLD = torch.nn.KLDivLoss(reduction="batchmean")
+		# self.HE = torch.nn.HingeEmbeddingLoss()
+		# self.KLD = torch.nn.KLDivLoss(reduction="batchmean")
 
 		for key, value in kwargs.items():
 			# Mapping all kwargs to attributes
@@ -91,11 +94,12 @@ class NetworkPlayground(torch.nn.Module):
 		self.RNN = eval(recurrent_unit)(
 				bidirectional=bidirectional, bias=bias,
 				input_size=variables, hidden_size=hidden_size,
-				num_layers=recurrent_layers, batch_first=True,
-		)
-		self.Sigmoid = torch.nn.Sigmoid()  # Required when using BCE
-		self.Linear1 = torch.nn.Linear(in_features=window, out_features=1)
-		self.Linear2 = torch.nn.Linear(in_features=hidden_size, out_features=1)
+				num_layers=recurrent_layers, dropout=dropout, batch_first=True)
+		self.Linear1 = torch.nn.Linear(in_features=window, out_features=hidden_size, bias=bias)
+		self.Linear2 = torch.nn.Linear(in_features=hidden_size, out_features=1, bias=False)
+		self.Linear3 = torch.nn.Linear(in_features=hidden_size, out_features=1, bias=False)
+		self.Sigmoid = torch.nn.Sigmoid()
+		self.ReLU = torch.nn.ReLU()
 
 		# Training Defines
 		self.criterion = self.BCE
@@ -125,10 +129,12 @@ class NetworkPlayground(torch.nn.Module):
 		x, _ = self.RNN(x)
 		if self.bidirectional:
 			x = x.view(-1, self.window, 2, self.hidden_size)
-			x = x.sum(axis=2)  # merging temporal branches
-		x = self.Linear2(x)  # mapping variables into classes
-		x = self.Linear1(x.permute(0, 2, 1))  # reducing the sequence
-		return self.Sigmoid(torch.squeeze(x))  # BCE requires a Sigmoid
+			x = x.sum(axis=2)  # merging temporal branches into one branch
+		x = self.Linear1(x.permute(0, 2, 1))  # encoding the temporal axis
+		x = self.Linear2(x.permute(0, 2, 1))  # decoding the variable axis
+		x = self.ReLU(x)  # introducing non-linearity in the decoding process
+		x = self.Linear3(x.permute(0, 2, 1))  # decoding the temporal axis
+		return self.Sigmoid(torch.squeeze(x))  # compressing dimensions
 
 	def __fit(self, x, y, alpha=1.75, center_lr=.25):
 		"""

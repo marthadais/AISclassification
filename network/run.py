@@ -29,6 +29,7 @@ random.seed(random_seed)
 
 hyperparameters = {
 	"bias": True,
+	"dropout": .0,
 	"window": 10,  # number of consecutive AIS messages to feed the NN (per mini-batch)
 	"variables": 4,  # number of features per AIS message
 	"shuffle": True,
@@ -44,9 +45,9 @@ hyperparameters = {
 	"bidirectional": False,  # whether to assume a multidirectional temporal dependency in the trajectories
 	"normalize_data": True,
 	"learning_rate": 0.001,
-	"scheduler_patience": 3,
-	"scheduler_factor": 0.9,
-	"learning_patience": 5,
+	"scheduler_patience": 2,
+	"scheduler_factor": 0.8,
+	"learning_patience": 6,
 	"recurrent_unit": "LSTM",  # "RNN", "GRU", or "LSTM"
 	"random_seed": random_seed,
 	"improvement_threshold": 0.1,
@@ -55,7 +56,7 @@ hyperparameters = {
 
 def test_pipelines(hyperparams):
 	hyperparameters.update(hyperparams)  # for the current iteration
-	hyperparameters["details"] = deepcopy(hyperparameters)  # for identification
+	hyperparameters["details"] = deepcopy(hyperparams)  # for identification
 
 	if hyperparameters["suffix"] == "T":  # time-based pipeline
 		df = pd.read_csv("../results/time_final/fishing_8_600.csv")
@@ -86,11 +87,12 @@ def test_pipelines(hyperparams):
 search_space = {  # essentially covering good possibilities
 	"verbose": [False],  # recommended during debugging
 	"batch_size": [4096],  # varies with the GPU Memory
+	"dropout": [.0, .15],  # RNN's dropout probability
 	"suffix": ["T", "O"],  # different datasets (do not change)
-	"window": [8, 9, 10, 11],  # according to the unsupervised analysis
+	"window": [8, 9, 10],  # according to the unsupervised analysis
 	"recurrent_layers": [1, 2, 3],  # number of stacked recurrent layers
 	"bidirectional": [True, False],  # temporal-dependency direction
-	"hidden_size": [32, 64, 128, 256],  # size of the hidden layers
+	"hidden_size": [64, 128, 256],  # size of the hidden layers
 	"recurrent_unit": ["LSTM", "RNN", "GRU"],  # different RNNs
 }  # This is a comprehensive, but reduced, set of possibilities
 grid_search = [dict(zip(search_space, x)) for x in itertools.product(*search_space.values())]
