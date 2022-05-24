@@ -1,6 +1,7 @@
 *.pt
 .idea/*
-data/preprocessed/
+data/dbi-data/*
+data/preprocessed/*
 0-fishing_10_10.csv
 1-fishing_10_10.csv
 results/time_final/*

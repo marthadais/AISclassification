@@ -459,3 +459,4 @@ class NetworkPlayground(torch.nn.Module):
 
 		pp.pprint(self.details); print(""); self.__print_details()
 		print("\n", classification_report(y_out.cpu().numpy(), self.predict(x_out), labels=[0, 1], target_names=["Sailing (0)", "Fishing (1)"], zero_division=1.))
+		return (y_dev.cpu().numpy(), self.predict(x_dev)), (y_out.cpu().numpy(), self.predict(x_out))

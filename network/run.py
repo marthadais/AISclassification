@@ -13,6 +13,7 @@ import random
 import itertools
 import numpy as np
 import pandas as pd
+from sklearn.metrics import balanced_accuracy_score
 
 from tqdm.contrib.concurrent import process_map
 from architecture import NetworkPlayground
@@ -141,8 +142,3 @@ np.random.shuffle(grid_search)  # Randomly shuffle for increased variability of 
 # Benchmarking results regarding the temporal approach
 print("The search space size is of %d possibilities!" % len(grid_search))
 _ = [test_pipelines(params) for params in grid_search]
-
-if len(details) > 1:
-	for idx, row in compiled_df.iterrows():
-		checkpoint_path = os.path.join("./training-checkpoints/", row["filename"])
-		test_checkpoint(torch.load(checkpoint_path)["details"], checkpoint_path)
