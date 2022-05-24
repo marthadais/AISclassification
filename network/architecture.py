@@ -79,8 +79,6 @@ class NetworkPlayground(torch.nn.Module):
 
 		# Evaluation Metrics
 		self.BCE = torch.nn.BCELoss()
-		# self.HE = torch.nn.HingeEmbeddingLoss()
-		# self.KLD = torch.nn.KLDivLoss(reduction="batchmean")
 
 		for key, value in kwargs.items():
 			# Mapping all kwargs to attributes
@@ -376,11 +374,11 @@ class NetworkPlayground(torch.nn.Module):
 								stop="%03d" % unimprovement,
 								rate="%08.7f" % self.optimizer.param_groups[0]["lr"],
 								a_acc="%05.3f" % balanced_accuracy_score(y_fit, yx_fit),
-								a_fsc="%05.3f" % f1_score(y_fit, yx_fit, average="weighted", zero_division=1.),
+								a_fsc="%05.3f" % f1_score(y_fit, yx_fit, average="macro", zero_division=1.),
 								b_acc="%05.3f" % balanced_accuracy_score(y_dev, yx_dev),
-								b_fsc="%05.3f" % f1_score(y_dev, yx_dev, average="weighted", zero_division=1.),
+								b_fsc="%05.3f" % f1_score(y_dev, yx_dev, average="macro", zero_division=1.),
 								c_acc="%05.3f" % balanced_accuracy_score(y_out, yx_out),
-								c_fsc="%05.3f" % f1_score(y_out, yx_out, average="weighted", zero_division=1.),
+								c_fsc="%05.3f" % f1_score(y_out, yx_out, average="macro", zero_division=1.),
 						)
 
 					current_loss = np.array(d_losses).mean(axis=0)
@@ -409,7 +407,7 @@ class NetworkPlayground(torch.nn.Module):
 				keep_training = False
 
 		# Loading the best epoch from the disk
-		checkpoint = torch.load(checkpoint_path)
+		checkpoint = torch.load(os.path.join("./training-checkpoints/", checkpoint_path))
 		pp = pprint.PrettyPrinter(indent=4)
 
 		# Restoring previous states
@@ -421,5 +419,43 @@ class NetworkPlayground(torch.nn.Module):
 
 		pp.pprint(self.details); print(""); self.__print_details()  # report the hyperparameters, number of internal parameters, and test again with the last seen weights
 		print("\n", classification_report(y_out.cpu().numpy(), self.predict(x_out), labels=[0, 1], target_names=["Sailing (0)", "Fishing (1)"], zero_division=1.))
-		shutil.move(checkpoint_path, "./training-checkpoints/" + checkpoint_path[3:])  # move the checkpoint to a permanent folder
+		shutil.move(checkpoint_path, os.path.join("./training-checkpoints/", checkpoint_path[3:]))  # move the checkpoint to a permanent folder
 		return self.min_loss
+
+	def test_checkpoint(self, x, y, checkpoint_path):
+		"""
+			Training routine for time-series binary classification.
+			:param x: tensor of shape (n_samples, n_timestamps, n_features)
+				A tensor of float-valued data features to use for classification.
+			:param y: tensor of shape (n_samples, n_timestamps, n_features)
+				A tensor of integer-valued monotonically-increasing labels.
+			:param checkpoint_path: string
+				Path of the trained model to load and perform the experiments.
+		"""
+		# Forcing Determinism
+		generator = torch.Generator()
+		generator.manual_seed(self.random_seed)
+		NetworkPlayground.__reseeding(self.random_seed)
+
+		# Sliced Test Data
+		_, (x_dev, y_dev), (x_out, y_out) = self.data_preparation(x, y, generator=generator)
+		# Beware of this might overflow the GPU memory depending on the size of the dataset
+		x_dev, y_dev, x_out, y_out = x_dev.cuda(), y_dev.cpu(), x_out.cuda(), y_out.cpu()
+
+		# Loading the best epoch from the disk
+		checkpoint = torch.load(checkpoint_path)
+		pp = pprint.PrettyPrinter(indent=4)
+
+		# Restoring previous states
+		self.epoch = checkpoint["epoch"]
+		self.details = checkpoint["details"]
+		self.min_loss = checkpoint["min_loss"]
+		self.load_state_dict(checkpoint["model_state_dict"])
+		self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+
+		for key, value in self.details.items():
+			# Mapping all kwargs to attributes
+			setattr(self, key, value)
+
+		pp.pprint(self.details); print(""); self.__print_details()
+		print("\n", classification_report(y_out.cpu().numpy(), self.predict(x_out), labels=[0, 1], target_names=["Sailing (0)", "Fishing (1)"], zero_division=1.))
