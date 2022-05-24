@@ -5,17 +5,16 @@
 #      www.spadon.com.br & gabriel@spadon.com.br
 #
 # This script requires setting "CUBLAS_WORKSPACE_CONFIG=:16:8" as an environment variable.
-import multiprocessing
-
 import os
 import torch
 import random
 import itertools
 import numpy as np
 import pandas as pd
-from sklearn.metrics import balanced_accuracy_score
+import multiprocessing
 
-from tqdm.contrib.concurrent import process_map
+from sklearn.metrics import balanced_accuracy_score
+from tqdm.contrib.concurrent import thread_map
 from architecture import NetworkPlayground
 from copy import deepcopy
 
@@ -102,15 +101,24 @@ def test_pipelines(hyperparams):
 	return None
 
 search_space = {
+	# "verbose": [False],  # recommended during debugging
+	# "batch_size": [4096],  # varies with the GPU Memory
+	# "dropout": [.0, .15],  # RNN's dropout probability
+	# "suffix": ["T", "O"],  # different datasets (do not change)
+	# "window": [8, 9, 10],  # according to the unsupervised analysis
+	# "recurrent_layers": [1, 2, 3],  # number of stacked recurrent layers
+	# "bidirectional": [True, False],  # temporal-dependency direction
+	# "hidden_size": [64, 128, 256],  # size of the hidden layers
+	# "recurrent_unit": ["LSTM", "RNN", "GRU"],  # different RNNs
 	"verbose": [False],  # recommended during debugging
 	"batch_size": [4096],  # varies with the GPU Memory
-	"dropout": [.0, .15],  # RNN's dropout probability
-	"suffix": ["T", "O"],  # different datasets (do not change)
-	"window": [8, 9, 10],  # according to the unsupervised analysis
-	"recurrent_layers": [1, 2, 3],  # number of stacked recurrent layers
-	"bidirectional": [True, False],  # temporal-dependency direction
-	"hidden_size": [64, 128, 256],  # size of the hidden layers
-	"recurrent_unit": ["LSTM", "RNN", "GRU"],  # different RNNs
+	"dropout": [0, .1],  # RNN's dropout probability
+	"suffix": ["O", "T"],  # different datasets (do not change)
+	"window": [5, 10, 15, 20, 25],  # according to the unsupervised analysis
+	"recurrent_layers": [2, 3, 4, 5],  # number of stacked recurrent layers
+	"bidirectional": [False],  # temporal-dependency direction
+	"hidden_size": [32, 64, 128],  # size of the hidden layers
+	"recurrent_unit": ["RNN"],  # different RNNs
 }  # This is a comprehensive, but reduced, set of possibilities
 
 queries = []
@@ -142,3 +150,4 @@ np.random.shuffle(grid_search)  # Randomly shuffle for increased variability of 
 # Benchmarking results regarding the temporal approach
 print("The search space size is of %d possibilities!" % len(grid_search))
 _ = [test_pipelines(params) for params in grid_search]
+# _ = thread_map(test_pipelines, iter(grid_search), max_workers=2, disable=True)

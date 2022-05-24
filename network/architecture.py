@@ -19,7 +19,7 @@ from tqdm import tqdm
 from pprint import pprint
 from datetime import datetime
 from torch.optim import AdamW
-from .center_loss import CenterLoss
+from center_loss import CenterLoss
 from torch.nn import RNN, GRU, LSTM  # used with eval(<class-name>)
 from prettytable import PrettyTable
 from sklearn.metrics import f1_score
@@ -348,9 +348,9 @@ class NetworkPlayground(torch.nn.Module):
 		NetworkPlayground.__reseeding(self.random_seed)
 
 		# Training Variables
-		os.makedirs("./training-checkpoints", exist_ok=True)
+		os.makedirs("training-checkpoints/", exist_ok=True)
 		self.epoch, unimprovement, keep_training = 0, 0, True
-		checkpoint_path = os.path.join("./.NN-%d-%s-%s.pt" % (self.random_seed, self.hash, self.suffix))
+		checkpoint_path = ".NN-%d-%s-%s.pt" % (self.random_seed, self.hash, self.suffix)
 
 		# Sliced Test Data
 		dataloader, (x_dev, y_dev), (x_out, y_out) = self.data_preparation(x, y, generator=generator)
@@ -409,7 +409,7 @@ class NetworkPlayground(torch.nn.Module):
 				keep_training = False
 
 		# Loading the best epoch from the disk
-		checkpoint = torch.load(os.path.join("./training-checkpoints/", checkpoint_path))
+		checkpoint = torch.load(checkpoint_path)
 		pp = pprint.PrettyPrinter(indent=4)
 
 		# Restoring previous states
@@ -421,7 +421,7 @@ class NetworkPlayground(torch.nn.Module):
 
 		pp.pprint(self.details); print(""); self.__print_details()  # report the hyperparameters, number of internal parameters, and test again with the last seen weights
 		print("\n", classification_report(y_out.cpu().numpy(), self.predict(x_out), labels=[0, 1], target_names=["Sailing (0)", "Fishing (1)"], zero_division=1.))
-		shutil.move(checkpoint_path, os.path.join("./training-checkpoints/", checkpoint_path[3:]))  # move the checkpoint to a permanent folder
+		shutil.move(checkpoint_path, os.path.join("training-checkpoints/", checkpoint_path[1:]))  # move the checkpoint to a permanent folder
 		return self.min_loss
 
 	def test_checkpoint(self, x, y, checkpoint_path):
@@ -452,14 +452,14 @@ class NetworkPlayground(torch.nn.Module):
 		self.min_loss = checkpoint["min_loss"]
 		self.load_state_dict(checkpoint["model_state_dict"])
 		self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-        
+
 		self.cpu()  # Move to the CPU device
 		for key, value in self.details.items():
 			# Mapping all kwargs to attributes
 			setattr(self, key, value)
 
 		yp_dev = self.predict(x_dev).cpu().numpy()
-		yp_out = self.predict(x_out).cpu().numpy()    
+		yp_out = self.predict(x_out).cpu().numpy()
 
 		parameters = self.__print_details(verbose=False)
 		return (y_dev, yp_dev), (y_out, yp_out), parameters
