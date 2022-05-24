@@ -16,9 +16,10 @@ import datetime
 import numpy as np
 
 from tqdm import tqdm
+from pprint import pprint
 from datetime import datetime
 from torch.optim import AdamW
-from center_loss import CenterLoss
+from .center_loss import CenterLoss
 from torch.nn import RNN, GRU, LSTM  # used with eval(<class-name>)
 from prettytable import PrettyTable
 from sklearn.metrics import f1_score
@@ -278,9 +279,9 @@ class NetworkPlayground(torch.nn.Module):
 		# Train, tuning, and test data folds
 		return dataloader, (xd, yd), (xt, yt)
 
-	def __print_details(self):
+	def __print_details(self, verbose=True):
 		# Yielding a preview of the network architecture
-		print("[I] Network Architecture:\n\n", self, end="\n\n")
+		if verbose: print("[I] Network Architecture:\n\n", self, end="\n\n")
 		# Creating a table to store details about the layers
 		table = PrettyTable(["Modules", "Shape", "Parameters"])
 		table.align["Parameters"] = "c"
@@ -301,7 +302,8 @@ class NetworkPlayground(torch.nn.Module):
 			total_params += n_params
 		table.add_row(["TOTAL", "", total_params])
 		# Printing the resulting table before proceeding with training
-		print(f"[I] Training Details:\n\n{table}\n\n[I] Network Training:", end="")
+		if verbose: print(f"[I] Training Details:\n\n{table}\n\n[I] Network Training:", end="")
+		return total_params
 
 	@staticmethod
 	def __worker_init(worker_id):
@@ -439,12 +441,10 @@ class NetworkPlayground(torch.nn.Module):
 
 		# Sliced Test Data
 		_, (x_dev, y_dev), (x_out, y_out) = self.data_preparation(x, y, generator=generator)
-		# Beware of this might overflow the GPU memory depending on the size of the dataset
-		x_dev, y_dev, x_out, y_out = x_dev.cuda(), y_dev.cpu(), x_out.cuda(), y_out.cpu()
+		x_dev, y_dev, x_out, y_out = x_dev.cpu(), y_dev.cpu().numpy(), x_out.cpu(), y_out.cpu().numpy()
 
 		# Loading the best epoch from the disk
-		checkpoint = torch.load(checkpoint_path)
-		pp = pprint.PrettyPrinter(indent=4)
+		checkpoint = torch.load(checkpoint_path, map_location=torch.device('cpu'))
 
 		# Restoring previous states
 		self.epoch = checkpoint["epoch"]
@@ -452,11 +452,14 @@ class NetworkPlayground(torch.nn.Module):
 		self.min_loss = checkpoint["min_loss"]
 		self.load_state_dict(checkpoint["model_state_dict"])
 		self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-
+        
+		self.cpu()  # Move to the CPU device
 		for key, value in self.details.items():
 			# Mapping all kwargs to attributes
 			setattr(self, key, value)
 
-		pp.pprint(self.details); print(""); self.__print_details()
-		print("\n", classification_report(y_out.cpu().numpy(), self.predict(x_out), labels=[0, 1], target_names=["Sailing (0)", "Fishing (1)"], zero_division=1.))
-		return (y_dev.cpu().numpy(), self.predict(x_dev)), (y_out.cpu().numpy(), self.predict(x_out))
+		yp_dev = self.predict(x_dev).cpu().numpy()
+		yp_out = self.predict(x_out).cpu().numpy()    
+
+		parameters = self.__print_details(verbose=False)
+		return (y_dev, yp_dev), (y_out, yp_out), parameters

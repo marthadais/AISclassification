@@ -6,6 +6,7 @@ data/preprocessed/*
 1-fishing_10_10.csv
 results/time_final/*
 2-fishing_10_600.csv
+.ipynb_checkpoints/*
 network/__pycache__/*
 0-fishing_5_10_10.csv
 1-fishing_5_10_10.csv
