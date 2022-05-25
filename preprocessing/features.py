@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from datetime import timedelta
 from itertools import groupby
+from haversine import haversine
 
 
 def remove_short_trajectories(data, n_obs=100):
@@ -25,6 +26,48 @@ def diff_cog(x):
     diff_x[diff_x > 180] = 360 - diff_x[diff_x > 180]
     diff_x[diff_x < -180] = 360 + diff_x[diff_x < 180]
     return diff_x
+
+
+def MA_MS_analyze(data, verbose=True):
+    mean_time_all = []
+    mean_dist_all = []
+    for traj_id in data['trajectory'].unique():
+        if verbose:
+            print(f'\t running trajectory {traj_id}')
+        mean_window_traj = []
+        trajectory_time = data[data['trajectory'] == traj_id]['time']
+        trajectory_lat = data[data['trajectory'] == traj_id]['lat']
+        trajectory_lat = trajectory_lat.reset_index(drop=True)
+        trajectory_lon = data[data['trajectory'] == traj_id]['lon']
+        trajectory_lon = trajectory_lon.reset_index(drop=True)
+        delta_T = trajectory_time.diff()
+        mean_time = []
+        mean_dist = []
+
+        for obs in range(1, trajectory_time.shape[0]-12):
+            # get start point
+            step = 0
+            time_in_w = delta_T.iloc[obs]
+            pointB = (trajectory_lat[obs], trajectory_lon[obs])
+            distance = 0
+            while (step <= 10):
+                step = step + 1
+                time_in_w = time_in_w + delta_T.iloc[obs+step]
+                pointA = pointB
+                pointB = (trajectory_lat[obs + step], trajectory_lon[obs + step])
+                distance = distance + haversine(pointA, pointB)
+
+            mean_time.append(time_in_w)
+            mean_dist.append(distance)
+        print(np.array(mean_time).mean())
+        print(np.array(mean_dist).mean())
+
+        mean_time_all.append(np.array(mean_time).mean())
+        mean_dist_all.append(np.array(mean_dist).mean())
+
+    if verbose:
+        print(f'\t time window: {np.array(mean_time_all).mean()}, {np.array(mean_time_all).std()}')
+        print(f'\t dist window: {np.array(mean_dist_all).mean()}, {np.array(mean_dist_all).std()}')
 
 
 def MA_MS_simple(data, col='sog', window=30, stats='mean'):
@@ -116,6 +159,73 @@ def MA_MS_timestamp(data, col='sog', epsilon=180, stats='mean', verbose=True):
     return data_agg
 
 
+def MA_MS_distance(data, col='sog', epsilon=180, stats='mean', verbose=True):
+    data_agg = pd.DataFrame()
+    mean_window = []
+    if verbose:
+        print(f'Running for {col}')
+    for traj_id in data['trajectory'].unique():
+        if verbose:
+            print(f'\t running trajectory {traj_id}')
+        mean_window_traj = []
+        trajectory = data[data['trajectory'] == traj_id][col]
+        trajectory_lat = data[data['trajectory'] == traj_id]['lat']
+        trajectory_lat = trajectory_lat.reset_index(drop=True)
+        trajectory_lon = data[data['trajectory'] == traj_id]['lon']
+        trajectory_lon = trajectory_lon.reset_index(drop=True)
+
+        traj_roll = []
+        for obs in range(trajectory.shape[0]):
+            step = 0
+            pointB = (trajectory_lat[obs], trajectory_lon[obs])
+            distance = 0
+            while (distance <= epsilon // 2) and (obs - (step + 1) >= 0):
+                step = step + 1
+                pointA = pointB
+                pointB = (trajectory_lat[obs-step], trajectory_lon[obs-step])
+                distance = distance + haversine(pointA, pointB)
+            ini = obs - (step - 1)
+            if step == 0:
+                ini = obs
+            # get end point
+            step = 0
+            pointB = (trajectory_lat[obs], trajectory_lon[obs])
+            distance = 0
+            while (distance <= epsilon // 2) and (obs + (step + 1) < trajectory.shape[0]):
+                step = step + 1
+                pointA = pointB
+                pointB = (trajectory_lat[obs + step], trajectory_lon[obs + step])
+                distance = distance + haversine(pointA, pointB)
+            end = obs + (step - 1)
+            if step == 0:
+                end = obs
+            if np.isnan(trajectory.iloc[ini:end].mean()):
+                end = end + 1
+            if stats == 'std':
+                traj_roll.append(trajectory.iloc[ini:end].std())
+            elif stats == 'sum':
+                traj_roll.append(trajectory.iloc[ini:end].sum())
+            else:
+                traj_roll.append(trajectory.iloc[ini:end].mean())
+            mean_window_traj.append(step)
+
+        trajectory_roll = pd.DataFrame()
+        if stats == 'std':
+            trajectory_roll[f'ms_d_{col}'] = pd.DataFrame(traj_roll)
+        elif stats == 'sum':
+            trajectory_roll[f'msum_d_{col}'] = pd.DataFrame(traj_roll)
+        else:
+            trajectory_roll[f'ma_d_{col}'] = pd.DataFrame(traj_roll)
+        data_agg = pd.concat([data_agg, trajectory_roll], axis=0)
+        mean_window.append(np.array(mean_window_traj).mean())
+
+    data_agg = data_agg.fillna(0)
+    if verbose:
+        print(f'\t distance window: {np.array(mean_window).mean()}, {np.array(mean_window).std()}')
+    data_agg = data_agg.reset_index(drop=True)
+    return data_agg
+
+
 def get_all_features(data, n_dirs=4, win=30, eps=180):
     features = remove_short_trajectories(data)
     features = features[['trajectory', 'time', 'sog', 'cog']]
@@ -144,6 +254,26 @@ def get_all_features(data, n_dirs=4, win=30, eps=180):
     MA_data = MA_MS_simple(features, col='acceleration', window=win)
     features = pd.concat([features, MA_data], axis=1)
     MA_data = MA_MS_simple(features, col='roc', window=win)
+    features = pd.concat([features, MA_data], axis=1)
+
+    return features
+
+
+def get_features_distance(data, eps=10):
+    features = remove_short_trajectories(data)
+    features = features[['trajectory', 'time', 'lat', 'lon', 'sog', 'cog']]
+
+    MA_MS_analyze(features)
+    aushuahs
+
+    features['roc'] = diff_cog(features['cog'])
+    features['acceleration'] = features['sog'].diff()/features['time'].diff().dt.seconds
+    features = features.fillna(0)
+    MA_data = MA_MS_distance(features, col='sog', epsilon=eps, stats='mean')
+    features = pd.concat([features, MA_data], axis=1)
+    MA_data = MA_MS_distance(features, col='roc', epsilon=eps, stats='sum')
+    features = pd.concat([features, MA_data], axis=1)
+    MA_data = MA_MS_distance(features, col='acceleration', epsilon=eps, stats='mean')
     features = pd.concat([features, MA_data], axis=1)
 
     return features
