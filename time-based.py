@@ -1,16 +1,20 @@
+import os
+
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans
+from sklearn.metrics import davies_bouldin_score
+
 from preprocessing import features as fts
-import os
-from sklearn.metrics import davies_bouldin_score, silhouette_score
 
 folder = './results/time_final/'
 if not os.path.exists(folder):
-    os.makedirs(folder)
-    os.makedirs(f'{folder}/data')
+	os.makedirs(folder)
+	os.makedirs(f'{folder}/data')
 
-seconds = 10*60 # time-based window
-nc = 8 # number of clusters
+seconds = 10 * 60  # time-based window
+nc = 8  # number of clusters
 
 print('Reading Dataset')
 data_file = f'./data/preprocessed/DCAIS_[30]_None-mmsi_region_[46, 51, -130, -122.5]_01-04_to_30-06_trips.csv'
@@ -24,47 +28,47 @@ dataset.loc[dataset[dataset['status'] != 7].index, 'control'] = 0
 print('Getting Features')
 features_path = f'{folder}/data/features_window_time_{seconds}.csv'
 if not os.path.exists(features_path):
-    # features_all = fts.get_all_features(dataset, n_dirs=n_dirs, win=window, eps=seconds)
-    features = fts.get_features_time(dataset, eps=seconds)
-    features.to_csv(features_path, index=False)
+	# features_all = fts.get_all_features(dataset, n_dirs=n_dirs, win=window, eps=seconds)
+	features = fts.get_features_time(dataset, eps=seconds)
+	features.to_csv(features_path, index=False)
 else:
-    features = pd.read_csv(features_path)
+	features = pd.read_csv(features_path)
 data_cl = features[['ma_t_acceleration', 'msum_t_roc']]
 
 file_name = f'{folder}/fishing_{nc}_{seconds}.csv'
 if not os.path.exists(file_name):
-    print('Clustering')
-    # Clustering
-    model = KMeans(nc).fit(data_cl)
-    labels = model.labels_
-    data_cl['labels'] = labels
-    dataset['labels'] = labels
+	print('Clustering')
+	# Clustering
+	model = KMeans(nc).fit(data_cl)
+	labels = model.labels_
+	data_cl['labels'] = labels
+	dataset['labels'] = labels
 
-    print('Pos-processing')
-    labels2 = fts.posprocessing_2(dataset, min_points=5)['labels']
-    data_cl['labels_pos'] = labels2
-    dataset['labels_pos'] = labels2
+	print('Pos-processing')
+	labels2 = fts.posprocessing_2(dataset, min_points=5)['labels']
+	data_cl['labels_pos'] = labels2
+	dataset['labels_pos'] = labels2
 
-    # Saving
-    # index of a few trajectories to quickly evaluate
-    trajs = dataset[dataset['status']==7]['trajectory'].unique()
-    sample_fishing = dataset[dataset['trajectory'].isin(trajs)]
-    sample_fishing.to_csv(f'{folder}/sample_fishing_{nc}_{seconds}.csv', index=False)
-    dataset.to_csv(f'{folder}/fishing_{nc}_{seconds}.csv', index=False)
+	# Saving
+	# index of a few trajectories to quickly evaluate
+	trajs = dataset[dataset['status'] == 7]['trajectory'].unique()
+	sample_fishing = dataset[dataset['trajectory'].isin(trajs)]
+	sample_fishing.to_csv(f'{folder}/sample_fishing_{nc}_{seconds}.csv', index=False)
+	dataset.to_csv(f'{folder}/fishing_{nc}_{seconds}.csv', index=False)
 
-    t_size = len(dataset['trajectory'].unique())
-    idx_train = list(range(round(t_size * 0.7)))
-    data_train = dataset[dataset['trajectory'].isin(idx_train)]
-    data_train.to_csv(f'{folder}/train_fishing_{nc}_{seconds}.csv', index=False)
-    idx_test = list(range(round(t_size * 0.7), t_size))
-    data_test = dataset[dataset['trajectory'].isin(idx_test)]
-    data_test.to_csv(f'{folder}/test_fishing_{nc}_{seconds}.csv', index=False)
+	t_size = len(dataset['trajectory'].unique())
+	idx_train = list(range(round(t_size * 0.7)))
+	data_train = dataset[dataset['trajectory'].isin(idx_train)]
+	data_train.to_csv(f'{folder}/train_fishing_{nc}_{seconds}.csv', index=False)
+	idx_test = list(range(round(t_size * 0.7), t_size))
+	data_test = dataset[dataset['trajectory'].isin(idx_test)]
+	data_test.to_csv(f'{folder}/test_fishing_{nc}_{seconds}.csv', index=False)
 
 
 else:
-    print('Reading clustering files')
-    dataset = pd.read_csv(file_name)
-    sample_fishing = pd.read_csv(f'{folder}/sample_fishing_{nc}_{seconds}.csv')
+	print('Reading clustering files')
+	dataset = pd.read_csv(file_name)
+	sample_fishing = pd.read_csv(f'{folder}/sample_fishing_{nc}_{seconds}.csv')
 
 print('Computing metrics')
 DBI = davies_bouldin_score(features[['ma_t_acceleration', 'msum_t_roc']], dataset['labels'])
@@ -72,10 +76,7 @@ print(f'DBI data = {DBI}')
 DBI = davies_bouldin_score(features[['ma_t_acceleration', 'msum_t_roc']], dataset['labels_pos'])
 print(f'DBI pos data = {DBI}')
 
-
-import numpy as np
-import matplotlib.pyplot as plt
-colors=np.array(['wheat', 'blue'])
+colors = np.array(['wheat', 'blue'])
 fig = plt.figure(figsize=(10, 9))
 plt.scatter(data_cl['ma_t_acceleration'], data_cl['msum_t_roc'], c=colors[dataset['labels_pos']], alpha=0.7)
 plt.xlabel('MA of acceleration', fontsize=15)
@@ -99,10 +100,7 @@ plt.tight_layout()
 # plt.show()
 plt.savefig(f'./results/images/time_scatter_{nc}.png', bbox_inches='tight')
 
-
-
 plt.scatter(dataset['sog'], dataset['cog'], c=colors[dataset['labels_pos']], alpha=0.7)
 plt.xlabel('SOG', fontsize=15)
 plt.ylabel('COG', fontsize=15)
 plt.show()
-
