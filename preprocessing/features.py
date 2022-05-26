@@ -70,7 +70,46 @@ def MA_MS_analyze(data, verbose=True):
         print(f'\t dist window: {np.array(mean_dist_all).mean()}, {np.array(mean_dist_all).std()}')
 
 
-def MA_MS_simple(data, col='sog', window=30, stats='mean'):
+def MA_MS_simple(data, window=10):
+    col = ['roc', 'acceleration']
+
+    data_agg_sum = pd.DataFrame()
+    data_agg_ma = pd.DataFrame()
+
+    for traj_id in data['trajectory'].unique():
+        trajectory = data[data['trajectory'] == traj_id][col]
+        # padding
+        aux = pd.DataFrame(np.repeat(0, np.floor(window / 2)))
+        aux2 = aux
+        if window % 2 == 0:
+            aux2 = aux2[0:-1]
+        trajectory = pd.concat([aux, trajectory, aux2])
+        trajectory.reset_index(drop=True)
+
+        # Moving sum
+        traj_roll_sum = pd.DataFrame()
+        traj_roll_sum[f'msum_{col[0]}'] = trajectory.rolling(window, center=True).sum()
+        traj_roll_sum = traj_roll_sum.dropna()
+        if traj_roll_sum.shape[0] == 0:
+            print(f'Trajectory {traj_id} has not enough observations for window size {window}!')
+
+        # Moving average
+        traj_roll_ma = pd.DataFrame()
+        traj_roll_ma[f'ma_{col[1]}'] = trajectory.rolling(window, center=True).mean()
+        traj_roll_ma = traj_roll_ma.dropna()
+        if traj_roll_ma.shape[0] == 0:
+            print(f'Trajectory {traj_id} has not enough observations for window size {window}!')
+        data_agg_sum = pd.concat([data_agg_sum, traj_roll_sum], axis=0)
+        data_agg_ma = pd.concat([data_agg_ma, traj_roll_ma], axis=0)
+
+    data_agg_sum = data_agg_sum.reset_index(drop=True)
+    data_agg_ma = data_agg_ma.reset_index(drop=True)
+    data_agg = pd.concat([data_agg_sum, data_agg_ma], axis=1)
+
+    return data_agg
+
+
+def MA_MS_simple_2(data, col='sog', window=30, stats='mean'):
     data_agg = pd.DataFrame()
     for traj_id in data['trajectory'].unique():
         trajectory = data[data['trajectory'] == traj_id][col]
@@ -263,9 +302,6 @@ def get_features_distance(data, eps=10):
     features = remove_short_trajectories(data)
     features = features[['trajectory', 'time', 'lat', 'lon', 'sog', 'cog']]
 
-    MA_MS_analyze(features)
-    aushuahs
-
     features['roc'] = diff_cog(features['cog'])
     features['acceleration'] = features['sog'].diff()/features['time'].diff().dt.seconds
     features = features.fillna(0)
@@ -296,6 +332,23 @@ def get_features_time(data, eps=180):
     return features
 
 
+def get_features_2(data, win=10):
+    features = remove_short_trajectories(data)
+    features = features[['trajectory', 'time', 'sog', 'cog']]
+
+    features['roc'] = diff_cog(features['cog'])
+    features['acceleration'] = features['sog'].diff() / features['time'].diff().dt.seconds
+    features = features.fillna(0)
+    MA_data = MA_MS_simple_2(features, col='sog', window=win)
+    features = pd.concat([features, MA_data], axis=1)
+    MA_data = MA_MS_simple_2(features, col='roc', window=win, stats='sum')
+    features = pd.concat([features, MA_data], axis=1)
+    MA_data = MA_MS_simple_2(features, col='acceleration', window=win)
+    features = pd.concat([features, MA_data], axis=1)
+
+    return features
+
+
 def get_features(data, win=10):
     features = remove_short_trajectories(data)
     features = features[['trajectory', 'time', 'sog', 'cog']]
@@ -303,11 +356,8 @@ def get_features(data, win=10):
     features['roc'] = diff_cog(features['cog'])
     features['acceleration'] = features['sog'].diff() / features['time'].diff().dt.seconds
     features = features.fillna(0)
-    MA_data = MA_MS_simple(features, col='sog', window=win)
-    features = pd.concat([features, MA_data], axis=1)
-    MA_data = MA_MS_simple(features, col='roc', window=win, stats='sum')
-    features = pd.concat([features, MA_data], axis=1)
-    MA_data = MA_MS_simple(features, col='acceleration', window=win)
+
+    MA_data = MA_MS_simple(features, window=win)
     features = pd.concat([features, MA_data], axis=1)
 
     return features

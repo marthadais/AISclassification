@@ -1,3 +1,4 @@
+#%%
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -42,14 +43,10 @@ plt.rcParams.update({
 colors_bi = np.array(['#F1C40F', '#34495E'])
 cmap = plt.cm.get_cmap('Dark2');
 
-nc = 8
-
-# nc = 8
-# colors_bi = np.array(['wheat', 'blue'])
-# cmap = plt.cm.get_cmap('Accent')
-
+#%%
 print('Getting Time-based Features')
 seconds = 10*60
+nc = 8
 folder = './results/time_final/'
 features_path = f'{folder}/data/features_window_time_{seconds}.csv'
 features = pd.read_csv(features_path)
@@ -61,11 +58,14 @@ dataset_time = pd.read_csv(file_name)
 fig = plt.figure(figsize=(10, 9))
 plt.scatter(data_cl_time['ma_t_acceleration'], data_cl_time['msum_t_roc'],
             c=colors_bi[dataset_time['labels_pos']], alpha=0.25)
+# Set logarithmic scale on the x variable
+plt.yscale("symlog")
 plt.ylabel('\\textbf{Moving Sum --} Rate of Course${}_\mathrm{~over~Ground}$')
 plt.xlabel('\\textbf{Moving Average --} Acceleration')
-plt.yticks(np.arange(-500, 1100, step=100))
-plt.xticks(np.arange(-1.4, 1.5, step=0.2))
-plt.ylim(-500, 1000); plt.xlim(-1.2, 1.4)
+# plt.yticks(np.arange(-500, 1100, step=100))
+# plt.xticks(np.arange(-1.4, 1.5, step=0.2))
+plt.ylim(-10**4, 10**5)
+plt.xlim(-.6, 0.6)
 plt.tight_layout()
 plt.savefig(f'./results/images/time_scatter.pdf', bbox_inches='tight')
 plt.savefig(f'./results/images/time_scatter.png', bbox_inches='tight', dpi=300)
@@ -73,17 +73,23 @@ plt.savefig(f'./results/images/time_scatter.png', bbox_inches='tight', dpi=300)
 fig = plt.figure(figsize=(10, 9))
 plt.scatter(data_cl_time['ma_t_acceleration'], data_cl_time['msum_t_roc'],
             c=cmap(dataset_time['labels']), alpha=0.25)
+# Set logarithmic scale on the x variable
+plt.yscale("symlog")
 plt.ylabel('\\textbf{Moving Sum (MS):} Rate of Course${}_\mathrm{~over~Ground}$')
 plt.xlabel('\\textbf{Moving Average (MA):} Acceleration')
-plt.yticks(np.arange(-600, 1100, step=100))
-plt.xticks(np.arange(-1.3, 1.4, step=0.2))
-plt.ylim(-500, 1000); plt.xlim(-1.1, 1.3)
+# plt.yticks(np.arange(-600, 1100, step=100))
+# plt.xticks(np.arange(-1.3, 1.4, step=0.2))
+plt.ylim(-10**4, 10**5)
+plt.xlim(-.6, 0.6)
 plt.tight_layout()
+# plt.show()
 plt.savefig(f'./results/images/time_scatter_{nc}.pdf', bbox_inches='tight')
 plt.savefig(f'./results/images/time_scatter_{nc}.png', bbox_inches='tight', dpi=300)
 
+#%%
 print('Getting Obs-based Features')
 win = 10
+nc = 8
 folder = './results/observations_final/'
 features_path = f'{folder}/data/features_window_{win}.csv'
 features = pd.read_csv(features_path)
@@ -94,29 +100,38 @@ dataset_obs = pd.read_csv(file_name)
 fig = plt.figure(figsize=(10, 9))
 plt.scatter(data_cl_obs['ma_acceleration'], data_cl_obs['msum_roc'],
             c=colors_bi[dataset_obs['labels_pos']], alpha=0.25)
+# Set logarithmic scale on the x variable
+plt.yscale("symlog")
 plt.ylabel('\\textbf{Moving Sum (MS):} Rate of Course${}_\mathrm{~over~Ground}$')
 plt.xlabel('\\textbf{Moving Average (MA):} Acceleration')
-plt.yticks(np.arange(-800, 1600, step=100))
-plt.xticks(np.arange(-1.0, 0.8, step=0.2))
-plt.ylim(-800, 1500); plt.xlim(-.6, 0.6)
+# plt.yticks(np.arange(-800, 1600, step=100))
+# plt.xticks(np.arange(-1.0, 0.8, step=0.2))
+plt.ylim(-10**4, 10**5)
+plt.xlim(-.6, 0.6)
 plt.tight_layout()
+# plt.show()
 plt.savefig(f'./results/images/obs_scatter.pdf', bbox_inches='tight')
 plt.savefig(f'./results/images/obs_scatter.png', bbox_inches='tight', dpi=300)
 
 fig = plt.figure(figsize=(10, 9))
 plt.scatter(data_cl_obs['ma_acceleration'], data_cl_obs['msum_roc'],
             c=cmap(dataset_obs['labels']), alpha=0.25)
+# Set logarithmic scale on the x variable
+plt.yscale("symlog")
 plt.ylabel('\\textbf{Moving Sum (MS):} Rate of Course${}_\mathrm{~over~Ground}$')
 plt.xlabel('\\textbf{Moving Average (MA):} Acceleration')
-plt.yticks(np.arange(-800, 1600, step=100))
-plt.xticks(np.arange(-1.0, 0.8, step=0.2))
-plt.ylim(-800, 1500); plt.xlim(-.6, .6)
+# plt.yticks(np.arange(-800, 1600, step=100))
+# plt.xticks(np.arange(-1.0, 0.8, step=0.2))
+plt.ylim(-10**4, 10**5)
+plt.xlim(-.6, 0.6)
 plt.tight_layout()
 plt.savefig(f'./results/images/obs_scatter_{nc}.pdf', bbox_inches='tight')
 plt.savefig(f'./results/images/obs_scatter_{nc}.png', bbox_inches='tight', dpi=300)
 
+#%%
 print('Getting Dist-based Features')
 km = 5.0
+nc = 12
 folder = './results/distance_final/'
 features_path = f'{folder}/data/features_window_{km}.csv'
 features = pd.read_csv(features_path)
@@ -127,11 +142,14 @@ dataset_dist = pd.read_csv(file_name)
 fig = plt.figure(figsize=(10, 9))
 plt.scatter(data_cl_dist['ma_d_acceleration'], data_cl_dist['msum_d_roc'],
             c=colors_bi[dataset_dist['labels_pos']], alpha=0.25)
+# Set logarithmic scale on the x variable
+plt.yscale("symlog")
 plt.ylabel('\\textbf{Moving Sum (MS):} Rate of Course${}_\mathrm{~over~Ground}$')
 plt.xlabel('\\textbf{Moving Average (MA):} Acceleration')
-plt.yticks(np.arange(-800, 1600, step=100))
-plt.xticks(np.arange(-1.0, 0.8, step=0.2))
-plt.ylim(-800, 1500); plt.xlim(-.6, 0.6)
+# plt.yticks(np.arange(-2000, 16000, step=1000))
+# plt.xticks(np.arange(-1.0, 6.6, step=0.5))
+plt.ylim(-10**4, 10**5)
+plt.xlim(-.6, 0.6)
 plt.tight_layout()
 plt.savefig(f'./results/images/dist_scatter.pdf', bbox_inches='tight')
 plt.savefig(f'./results/images/dist_scatter.png', bbox_inches='tight', dpi=300)
@@ -140,16 +158,21 @@ plt.savefig(f'./results/images/dist_scatter.png', bbox_inches='tight', dpi=300)
 fig = plt.figure(figsize=(10, 9))
 plt.scatter(data_cl_dist['ma_d_acceleration'], data_cl_dist['msum_d_roc'],
             c=cmap(dataset_dist['labels']), alpha=0.25)
+# Set logarithmic scale on the x variable
+plt.yscale("symlog")
 plt.ylabel('\\textbf{Moving Sum (MS):} Rate of Course${}_\mathrm{~over~Ground}$')
 plt.xlabel('\\textbf{Moving Average (MA):} Acceleration')
-plt.yticks(np.arange(-800, 1600, step=100))
-plt.xticks(np.arange(-1.0, 0.8, step=0.2))
-plt.ylim(-800, 1500); plt.xlim(-.6, .6)
+# plt.yticks(np.arange(-2000, 16000, step=1000))
+# plt.xticks(np.arange(-1.0, 6.6, step=0.5))
+plt.ylim(-10**4, 10**5)
+plt.xlim(-.6, 0.6)
 plt.tight_layout()
+# plt.show()
 plt.savefig(f'./results/images/dist_scatter_{nc}.pdf', bbox_inches='tight')
 plt.savefig(f'./results/images/dist_scatter_{nc}.png', bbox_inches='tight', dpi=300)
 
 
+#%%
 ###############
 print('DBI plot')
 
@@ -177,6 +200,7 @@ plt.legend()
 plt.xticks(index_d, index_d)
 plt.yticks(np.arange(0.35, 0.55, step=0.01))
 plt.tight_layout()
+# plt.show()
 plt.savefig(f'./results/images/dbi-kmeans.pdf', bbox_inches='tight')
 plt.savefig(f'./results/images/dbi-kmeans.png', bbox_inches='tight', dpi=300)
 
