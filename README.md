@@ -63,6 +63,6 @@ torchvision==0.11.2+cu113\
 tqdm==4.64.0\
 typing_extensions==4.2.0
 
-##Reference
+## Reference
 
 [1] Ferreira, M.D.; Spadon, G.; Soares, A.; Matwin, S. A Semi-Supervised Methodology for Fishing Activity Detection Using the Geometry behind the Trajectory of Multiple Vessels. Sensors 2022, 22, 6063. https://doi.org/10.3390/s22166063
