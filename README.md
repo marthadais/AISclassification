@@ -13,8 +13,11 @@ This source code also includes a broad benchmark study assessing the performance
 ##Files Description
 
 observation-based.py: it executes the clustering based on the number of messages.
+
 time-based.py: it executes the clustering based on the time between messages.
+
 distance-based.py: it executes the clustering based on the distance between messages.
+
 network/run.py: it executes the proposed RNN.
 
 ###Read data
