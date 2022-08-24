@@ -8,9 +8,7 @@ It employes a cluster analysis to label the vessel’s movement pattern by indic
 Next, the proposed recurrent neural networks is applied to detect fishing activities on AIS data streams with roughly 87% of the overall F-score on the whole trajectories of 50 different unseen fishing vessels.
 This source code also includes a broad benchmark study assessing the performance of different Recurrent Neural Network (RNN) architectures.
 
-
-
-##Files Description
+## Files Description
 
 observation-based.py: it executes the clustering based on the number of messages.
 
@@ -20,7 +18,7 @@ distance-based.py: it executes the clustering based on the distance between mess
 
 network/run.py: it executes the proposed RNN.
 
-###Read data
+### Read data
 1. Read data from NOAA
 2. Clean data
    1. remove messages with invalid cog
