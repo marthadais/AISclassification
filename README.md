@@ -1,11 +1,14 @@
 # AISclassification
 
 This source code is related to the work in [[1]](https://www.mdpi.com/1424-8220/22/16/6063#cite). Thus, if you are using this code please cite [[1]](https://www.mdpi.com/1424-8220/22/16/6063#cite).
+The arxiv file is available at [link](https://arxiv.org/abs/2207.05514v1).
+
 A geometric-driven semi-supervised approach for fishing activity detection from AIS data. 
 It employes a cluster analysis to label the vessel’s movement pattern by indicating fishing activity, exploring the geometry of the vessel route included in the messages.
 Next, the proposed recurrent neural networks is applied to detect fishing activities on AIS data streams with roughly 87% of the overall F-score on the whole trajectories of 50 different unseen fishing vessels.
 This source code also includes a broad benchmark study assessing the performance of different Recurrent Neural Network (RNN) architectures.
-The arxiv file is available at [link](https://arxiv.org/abs/2207.05514v1).
+
+
 
 ##Files Description
 
