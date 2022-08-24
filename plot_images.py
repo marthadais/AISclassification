@@ -47,7 +47,7 @@ cmap = plt.cm.get_cmap('Dark2');
 print('Getting Time-based Features')
 seconds = 10*60
 nc = 8
-folder = './results/time_final/'
+folder = './results/time_final2/'
 features_path = f'{folder}/data/features_window_time_{seconds}.csv'
 features = pd.read_csv(features_path)
 data_cl_time = features[['ma_t_acceleration', 'msum_t_roc']]
@@ -67,6 +67,7 @@ plt.xlabel('\\textbf{Moving Average --} Acceleration')
 plt.ylim(-10**4, 10**5)
 plt.xlim(-.6, 0.6)
 plt.tight_layout()
+# plt.show()
 plt.savefig(f'./results/images/time_scatter.pdf', bbox_inches='tight')
 plt.savefig(f'./results/images/time_scatter.png', bbox_inches='tight', dpi=300)
 
@@ -90,8 +91,8 @@ plt.savefig(f'./results/images/time_scatter_{nc}.png', bbox_inches='tight', dpi=
 print('Getting Obs-based Features')
 win = 10
 nc = 8
-folder = './results/observations_final/'
-features_path = f'{folder}/data/features_window_{win}.csv'
+folder = './results/observations_final2/'
+features_path = f'{folder}/data/features_window_obs_{win}.csv'
 features = pd.read_csv(features_path)
 data_cl_obs = features[['ma_acceleration', 'msum_roc']]
 file_name = f'{folder}/fishing_{nc}_{win}.csv'
@@ -132,7 +133,7 @@ plt.savefig(f'./results/images/obs_scatter_{nc}.png', bbox_inches='tight', dpi=3
 print('Getting Dist-based Features')
 km = 5.0
 nc = 12
-folder = './results/distance_final/'
+folder = './results/distance_final2/'
 features_path = f'{folder}/data/features_window_{km}.csv'
 features = pd.read_csv(features_path)
 data_cl_dist = features[['ma_d_acceleration', 'msum_d_roc']]

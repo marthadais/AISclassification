@@ -8,7 +8,7 @@ from sklearn.metrics import davies_bouldin_score
 
 from preprocessing import features as fts
 
-folder = './results/time_final/'
+folder = './results/time_final2/'
 if not os.path.exists(folder):
 	os.makedirs(folder)
 	os.makedirs(f'{folder}/data')
@@ -29,7 +29,7 @@ print('Getting Features')
 features_path = f'{folder}/data/features_window_time_{seconds}.csv'
 if not os.path.exists(features_path):
 	# features_all = fts.get_all_features(dataset, n_dirs=n_dirs, win=window, eps=seconds)
-	features = fts.get_features_time(dataset, eps=seconds)
+	features = fts.get_features_time(dataset, win=seconds)
 	features.to_csv(features_path, index=False)
 else:
 	features = pd.read_csv(features_path)

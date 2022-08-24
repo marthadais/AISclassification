@@ -6,7 +6,7 @@ from sklearn.metrics import davies_bouldin_score
 
 from preprocessing import features as fts
 
-folder = './results/observations_final/'
+folder = './results/observations_final2/'
 if not os.path.exists(folder):
 	os.makedirs(folder)
 	os.makedirs(f'{folder}/data')
@@ -22,7 +22,7 @@ dataset['control'] = dataset['status'].copy()
 dataset.loc[dataset[dataset['status'] == 7].index, 'control'] = 1
 dataset.loc[dataset[dataset['status'] != 7].index, 'control'] = 0
 
-features_path = f'{folder}/data/features_window_{win}.csv'
+features_path = f'{folder}/data/features_window_obs_{win}.csv'
 if not os.path.exists(features_path):
 	print('Getting Features')
 	features = fts.get_features(dataset, win=win)

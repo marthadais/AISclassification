@@ -4,12 +4,12 @@ from preprocessing import features as fts
 import os
 from sklearn.metrics import davies_bouldin_score
 
-folder = './results/distance_final/'
+folder = './results/distance_final2/'
 if not os.path.exists(folder):
     os.makedirs(folder)
     os.makedirs(f'{folder}/data')
 
-meters = 5000/1000 # dist-based window
+kilometers = 5000/1000 # dist-based window kilometers
 nc = 12 # number of clusters
 
 print('Reading Dataset')
@@ -22,16 +22,16 @@ dataset.loc[dataset[dataset['status'] == 7].index, 'control'] = 1
 dataset.loc[dataset[dataset['status'] != 7].index, 'control'] = 0
 
 print('Getting Features')
-features_path = f'{folder}/data/features_window_dist_{meters}.csv'
+features_path = f'{folder}/data/features_window_dist_{kilometers}.csv'
 if not os.path.exists(features_path):
     # features_all = fts.get_all_features(dataset, n_dirs=n_dirs, win=window, eps=seconds)
-    features = fts.get_features_distance(dataset, eps=meters)
+    features = fts.get_features_distance(dataset, win=kilometers)
     features.to_csv(features_path, index=False)
 else:
     features = pd.read_csv(features_path)
 data_cl = features[['ma_d_acceleration', 'msum_d_roc']]
 
-file_name = f'{folder}/fishing_{nc}_{meters}.csv'
+file_name = f'{folder}/fishing_{nc}_{kilometers}.csv'
 if not os.path.exists(file_name):
     print('Clustering')
     # Clustering
@@ -49,22 +49,22 @@ if not os.path.exists(file_name):
     # index of a few trajectories to quickly evaluate
     trajs = dataset[dataset['status']==7]['trajectory'].unique()
     sample_fishing = dataset[dataset['trajectory'].isin(trajs)]
-    sample_fishing.to_csv(f'{folder}/sample_fishing_{nc}_{meters}.csv', index=False)
-    dataset.to_csv(f'{folder}/fishing_{nc}_{meters}.csv', index=False)
+    sample_fishing.to_csv(f'{folder}/sample_fishing_{nc}_{kilometers}.csv', index=False)
+    dataset.to_csv(f'{folder}/fishing_{nc}_{kilometers}.csv', index=False)
 
     t_size = len(dataset['trajectory'].unique())
     idx_train = list(range(round(t_size * 0.7)))
     data_train = dataset[dataset['trajectory'].isin(idx_train)]
-    data_train.to_csv(f'{folder}/train_fishing_{nc}_{meters}.csv', index=False)
+    data_train.to_csv(f'{folder}/train_fishing_{nc}_{kilometers}.csv', index=False)
     idx_test = list(range(round(t_size * 0.7), t_size))
     data_test = dataset[dataset['trajectory'].isin(idx_test)]
-    data_test.to_csv(f'{folder}/test_fishing_{nc}_{meters}.csv', index=False)
+    data_test.to_csv(f'{folder}/test_fishing_{nc}_{kilometers}.csv', index=False)
 
 
 else:
     print('Reading clustering files')
     dataset = pd.read_csv(file_name)
-    sample_fishing = pd.read_csv(f'{folder}/sample_fishing_{nc}_{meters}.csv')
+    sample_fishing = pd.read_csv(f'{folder}/sample_fishing_{nc}_{kilometers}.csv')
 
 print('Computing metrics')
 DBI = davies_bouldin_score(features[['ma_d_acceleration', 'msum_d_roc']], dataset['labels'])
